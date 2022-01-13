@@ -1,0 +1,12 @@
+/*.txt
+/*.pdf
+/*.pprof
+/dist/
+/tools/dist/
+/.idea/
+/vendor/
+/.vscode/
+*.test
+.DS_Store
+coverage.out
+coverage.xml
