@@ -10,6 +10,8 @@
 
 package ergo
 
+import "math/big"
+
 // NodeInfo struct for NodeInfo
 type NodeInfo struct {
 	Name       string `json:"name"`
@@ -36,15 +38,15 @@ type NodeInfo struct {
 	UnconfirmedCount int32 `json:"unconfirmedCount"`
 	// Difficulty on current bestFullHeaderId. Can be 'null' if no full block is applied since node
 	// launch
-	Difficulty int64 `json:"difficulty"`
+	Difficulty big.Int `json:"difficulty"`
 	// Current internal node time
 	CurrentTime int64 `json:"currentTime"`
 	// Time when the node was started
 	LaunchTime int64 `json:"launchTime"`
 	// Can be 'null' if no headers is applied since node launch
-	HeadersScore int64 `json:"headersScore"`
+	HeadersScore big.Int `json:"headersScore"`
 	// Can be 'null' if no full block is applied since node launch
-	FullBlocksScore int64 `json:"fullBlocksScore"`
+	FullBlocksScore big.Int `json:"fullBlocksScore"`
 	// Can be 'null' if genesis blocks is not produced yet
 	GenesisBlockID string      `json:"genesisBlockId"`
 	Parameters     *Parameters `json:"parameters"`

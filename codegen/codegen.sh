@@ -52,7 +52,7 @@ for file in ergo/types/model_*.go; do
     mv "$file" "${file/model_/}"
 done
 
-#rm -rf client_tmp;
+rm -rf client_tmp;
 
 # remove types we don't need or that currently have issues/are unfinished
 # there's still a lot of unused types
@@ -82,9 +82,21 @@ sed "${SED_IFLAG[@]}" 's/Json/JSON/g' ergo/types/*;
 sed "${SED_IFLAG[@]}" 's/Id /ID /g' ergo/types/*;
 sed "${SED_IFLAG[@]}" 's/Url/URL/g' ergo/types/*;
 
+# fix bigint
+# import math/big into required files
+BIGINT_FIX=("node_info")
+for FILE in "${BIGINT_FIX[@]}" ; do
+    sed "${SED_IFLAG[@]}" 's/package ergo/package ergo\
+    import \"math\/big\"/g' "ergo/types/${FILE}.go";
+done
+# replace types with big.Int
+sed "${SED_IFLAG[@]}" 's/Difficulty int32/Difficulty big.Int/g' ergo/types/node_info.go;
+sed "${SED_IFLAG[@]}" 's/HeadersScore int32/HeadersScore big.Int/g' ergo/types/node_info.go;
+sed "${SED_IFLAG[@]}" 's/FullBlocksScore int32/FullBlocksScore big.Int/g' ergo/types/node_info.go;
+
 # format generated code
 FORMAT_GEN="gofmt -w /local/ergo/types"
 GOLANG_VERSION=1.17
 docker run --rm -v "${PWD}":/local \
   golang:${GOLANG_VERSION} sh -c \
-  "cd /local; ${FORMAT_GEN}"
+  "cd /local; ${FORMAT_GEN}; make shorten-lines; go mod tidy;"

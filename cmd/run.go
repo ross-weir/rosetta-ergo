@@ -115,13 +115,6 @@ func runCmdHandler(cmd *cobra.Command, args []string) error {
 
 	logger.Info("loaded ergo node client")
 
-	ns, err := client.NetworkStatus(ctx)
-	if err != nil {
-		logger.Fatalw("client err", "error", err)
-	}
-
-	logger.Infow("network status", "status", types.PrettyPrintStruct(ns))
-
 	router := services.NewBlockchainRouter(cfg, client, asserter)
 	loggedRouter := services.LoggerMiddleware(zapLogger, router)
 	corsRouter := server.CorsMiddleware(loggedRouter)
