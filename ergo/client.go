@@ -112,8 +112,8 @@ func (e *Client) GetPeers(ctx context.Context) ([]*types.Peer, error) {
 	}
 
 	peers := make([]*types.Peer, len(connectedPeers))
-	for i, connectedPeer := range connectedPeers {
-		peer, err := ergoPeerToRosettaPeer(&connectedPeer)
+	for i := range connectedPeers {
+		peer, err := ergoPeerToRosettaPeer(&connectedPeers[i])
 		if err != nil {
 			return nil, fmt.Errorf("%w: unable to convert ergo peer to rosetta peer", err)
 		}
