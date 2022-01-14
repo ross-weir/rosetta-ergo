@@ -12,6 +12,8 @@ const (
 	// The identifier for the testnet network identifier in rosetta
 	TestnetNetwork string = "testnet"
 
+	ErgDecimals = 9
+
 	// The amount of nano ergs = 1 erg
 	NanoErgInErg = 1000000000
 
@@ -35,7 +37,7 @@ var (
 
 	Currency = &types.Currency{
 		Symbol:   "ERG",
-		Decimals: 9,
+		Decimals: ErgDecimals,
 	}
 
 	OperationTypes = []string{

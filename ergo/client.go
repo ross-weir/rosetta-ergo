@@ -167,7 +167,6 @@ func (e *Client) makeRequest(
 	requestBody []interface{},
 	response interface{},
 ) error {
-
 	var requestBodyJSON []byte
 	var err error
 
