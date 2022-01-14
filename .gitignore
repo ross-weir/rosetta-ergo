@@ -16,3 +16,5 @@ coverage.xml
 
 openapi.yaml
 client_tmp
+
+rosetta-ergo*

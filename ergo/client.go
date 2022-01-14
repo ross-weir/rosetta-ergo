@@ -191,7 +191,6 @@ func (e *Client) makeRequest(
 		e.baseURL+"/"+string(endpoint),
 		bytes.NewReader(requestBodyJSON),
 	)
-	// e.logger.Infow("request to node", "request", types.PrettyPrintStruct(req))
 	if err != nil {
 		return fmt.Errorf("%w: error constructing request", err)
 	}
