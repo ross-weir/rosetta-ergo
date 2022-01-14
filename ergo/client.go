@@ -29,7 +29,7 @@ const (
 	dialTimeout    = 5 * time.Second
 
 	// Using fixed credentials as the nodes REST API should never be exposed on the internet
-	nodeApiToken = "rosetta"
+	nodeAPIToken = "rosetta"
 )
 
 type Client struct {
@@ -49,13 +49,13 @@ func LocalNodeURL(nodePort int) string {
 
 // Create a new ergo node client
 func NewClient(
-	baseUrl string,
+	baseURL string,
 	genesisBlockIdentifier *types.BlockIdentifier,
 	currency *types.Currency,
 	logger *zap.Logger,
 ) *Client {
 	return &Client{
-		baseURL:                baseUrl,
+		baseURL:                baseURL,
 		genesisBlockIdentifier: genesisBlockIdentifier,
 		currency:               currency,
 		httpClient:             newHTTPClient(defaultTimeout),
@@ -168,24 +168,24 @@ func (e *Client) makeRequest(
 	response interface{},
 ) error {
 
-	var requestBodyJson []byte
+	var requestBodyJSON []byte
 	var err error
 
 	if requestBody != nil {
-		requestBodyJson, err = json.Marshal(requestBody)
+		requestBodyJSON, err = json.Marshal(requestBody)
 		if err != nil {
 			return fmt.Errorf("%w: error marshalling api request body", err)
 		}
 	}
 
-	req, err := http.NewRequest(requestMethod, e.baseURL+"/"+string(endpoint), bytes.NewReader(requestBodyJson))
+	req, err := http.NewRequest(requestMethod, e.baseURL+"/"+string(endpoint), bytes.NewReader(requestBodyJSON))
 	// e.logger.Infow("request to node", "request", types.PrettyPrintStruct(req))
 	if err != nil {
 		return fmt.Errorf("%w: error constructing request", err)
 	}
 
 	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("api_key", nodeApiToken)
+	req.Header.Set("api_key", nodeAPIToken)
 
 	res, err := e.httpClient.Do(req.WithContext(ctx))
 	if err != nil {

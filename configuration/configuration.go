@@ -9,7 +9,7 @@ import (
 	"github.com/ross-weir/rosetta-ergo/ergo"
 )
 
-// Populated at build time using ldflags
+// Version is populated at build time using ldflags
 var Version string = "UNKNOWN"
 
 // Mode is the setting that determines if

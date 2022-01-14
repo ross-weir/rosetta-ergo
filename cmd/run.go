@@ -16,8 +16,6 @@ import (
 	"github.com/spf13/cobra"
 	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
-
-	_ "github.com/joho/godotenv/autoload"
 )
 
 const (

@@ -6,6 +6,8 @@ import (
 	"github.com/ross-weir/rosetta-ergo/cmd"
 
 	"github.com/fatih/color"
+
+	_ "github.com/joho/godotenv/autoload"
 )
 
 func main() {
