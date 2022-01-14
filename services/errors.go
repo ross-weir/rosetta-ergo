@@ -53,7 +53,7 @@ var (
 	// errors on a request.
 	ErrErgoNode = &types.Error{
 		Code:    3, //nolint
-		Message: "ErgoNode error",
+		Message: "Ergo node error",
 	}
 )
 
