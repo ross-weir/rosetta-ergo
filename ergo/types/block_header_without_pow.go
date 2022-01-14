@@ -13,7 +13,7 @@ package ergo
 // BlockHeaderWithoutPow struct for BlockHeaderWithoutPow
 type BlockHeaderWithoutPow struct {
 	// Base16-encoded 32 byte modifier id
-	Id string `json:"id"`
+	ID string `json:"id"`
 	// Basic timestamp definition
 	Timestamp int64 `json:"timestamp"`
 	// Ergo blockchain protocol version
@@ -30,15 +30,15 @@ type BlockHeaderWithoutPow struct {
 	Height        int32  `json:"height"`
 	Difficulty    int32  `json:"difficulty"`
 	// Base16-encoded 32 byte modifier id
-	ParentId string `json:"parentId"`
+	ParentID string `json:"parentId"`
 	// Base16-encoded votes for a soft-fork and parameters
 	Votes string `json:"votes"`
 	// Size in bytes
 	Size *int32 `json:"size,omitempty"`
 	// Base16-encoded 32 byte modifier id
-	ExtensionId *string `json:"extensionId,omitempty"`
+	ExtensionID *string `json:"extensionId,omitempty"`
 	// Base16-encoded 32 byte modifier id
-	TransactionsId *string `json:"transactionsId,omitempty"`
+	TransactionsID *string `json:"transactionsId,omitempty"`
 	// Base16-encoded 32 byte modifier id
-	AdProofsId *string `json:"adProofsId,omitempty"`
+	AdProofsID *string `json:"adProofsId,omitempty"`
 }

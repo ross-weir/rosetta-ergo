@@ -10,7 +10,8 @@
 
 package ergo
 
-// DhtSecret Hex-encoded big-endian 256-bits secret exponent \"w\" along with generators \"g\", \"h\", and group elements \"u\", \"v\", such as g^w = u, h^w = v
+// DhtSecret Hex-encoded big-endian 256-bits secret exponent \"w\" along with generators \"g\",
+// \"h\", and group elements \"u\", \"v\", such as g^w = u, h^w = v
 type DhtSecret struct {
 	// Hex-encoded big-endian 256-bits secret exponent
 	Secret string `json:"secret"`

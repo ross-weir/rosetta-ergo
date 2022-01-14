@@ -13,6 +13,6 @@ package ergo
 // ErgoTransactionDataInput struct for ErgoTransactionDataInput
 type ErgoTransactionDataInput struct {
 	// Base16-encoded transaction box id bytes. Should be 32 bytes long
-	BoxId     string             `json:"boxId"`
+	BoxID     string             `json:"boxId"`
 	Extension *map[string]string `json:"extension,omitempty"`
 }

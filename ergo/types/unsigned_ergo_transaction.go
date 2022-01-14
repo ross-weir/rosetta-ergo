@@ -13,7 +13,7 @@ package ergo
 // UnsignedErgoTransaction Unsigned Ergo transaction
 type UnsignedErgoTransaction struct {
 	// Base16-encoded transaction id bytes
-	Id *string `json:"id,omitempty"`
+	ID *string `json:"id,omitempty"`
 	// Unsigned inputs of the transaction
 	Inputs *[]ErgoTransactionUnsignedInput `json:"inputs"`
 	// Data inputs of the transaction

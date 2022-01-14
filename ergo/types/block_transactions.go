@@ -13,7 +13,7 @@ package ergo
 // BlockTransactions struct for BlockTransactions
 type BlockTransactions struct {
 	// Base16-encoded 32 byte modifier id
-	HeaderId string `json:"headerId"`
+	HeaderID string `json:"headerId"`
 	// Ergo transaction objects
 	Transactions *[]ErgoTransaction `json:"transactions"`
 	// Size in bytes

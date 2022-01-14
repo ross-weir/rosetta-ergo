@@ -23,7 +23,7 @@ type CandidateBlock struct {
 	// Base16-encoded ad proofs
 	AdProofBytes *string `json:"adProofBytes,omitempty"`
 	// Base16-encoded 32 byte modifier id
-	ParentId           string `json:"parentId"`
+	ParentID           string `json:"parentId"`
 	TransactionsNumber *int32 `json:"transactionsNumber,omitempty"`
 	// Ergo transaction objects
 	Transactions *[]ErgoTransaction `json:"transactions,omitempty"`

@@ -9,7 +9,7 @@ import (
 	"github.com/ross-weir/rosetta-ergo/ergo"
 )
 
-// Populated at build time using ldflags
+// Version is populated at build time using ldflags
 var Version string = "UNKNOWN"
 
 // Mode is the setting that determines if
@@ -35,7 +35,8 @@ const (
 	EnvVarPrefix = "ERGO_"
 
 	// The mode we're operating in for the rosetta API
-	// Online vs Offline mode, see more: https://www.rosetta-api.org/docs/node_deployment.html#multiple-modes
+	// Online vs Offline mode, see more:
+	// https://www.rosetta-api.org/docs/node_deployment.html#multiple-modes
 	RosettaModeEnv = "ROSETTA_MODE"
 
 	// The network we're operating in for the ergo blockchain

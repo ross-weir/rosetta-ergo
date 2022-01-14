@@ -20,17 +20,17 @@ func ergoBlockHeaderToRosettaBlock(bh *ergotype.BlockHeader) (*types.Block, erro
 
 	blockIndex := int64(bh.Height)
 	previousBlockIndex := blockIndex - 1
-	previousBlockHash := bh.ParentId
+	previousBlockHash := bh.ParentID
 
 	// the genesis blocks parent is itself according to the rosetta spec
 	if blockIndex == genesisBlockIndex {
 		previousBlockIndex = genesisBlockIndex
-		previousBlockHash = bh.Id
+		previousBlockHash = bh.ID
 	}
 
 	return &types.Block{
 		BlockIdentifier: &types.BlockIdentifier{
-			Hash:  bh.Id,
+			Hash:  bh.ID,
 			Index: blockIndex,
 		},
 		ParentBlockIdentifier: &types.BlockIdentifier{

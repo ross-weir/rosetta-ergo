@@ -13,7 +13,7 @@ package ergo
 // ErgoTransactionOutput struct for ErgoTransactionOutput
 type ErgoTransactionOutput struct {
 	// Base16-encoded transaction box id bytes. Should be 32 bytes long
-	BoxId *string `json:"boxId,omitempty"`
+	BoxID *string `json:"boxId,omitempty"`
 	// Amount of Ergo token
 	Value int64 `json:"value"`
 	// Base16-encoded ergo tree bytes
@@ -25,7 +25,7 @@ type ErgoTransactionOutput struct {
 	// Ergo box registers
 	AdditionalRegisters map[string]string `json:"additionalRegisters"`
 	// Base16-encoded transaction id bytes
-	TransactionId *string `json:"transactionId,omitempty"`
+	TransactionID *string `json:"transactionId,omitempty"`
 	// Index in the transaction outputs
 	Index *int32 `json:"index,omitempty"`
 }

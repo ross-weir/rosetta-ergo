@@ -13,7 +13,7 @@ package ergo
 // ErgoTransaction Ergo transaction
 type ErgoTransaction struct {
 	// Base16-encoded transaction id bytes
-	Id *string `json:"id,omitempty"`
+	ID *string `json:"id,omitempty"`
 	// Inputs of the transaction
 	Inputs *[]ErgoTransactionInput `json:"inputs"`
 	// Data inputs of the transaction
