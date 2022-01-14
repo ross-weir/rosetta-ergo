@@ -6,10 +6,12 @@ import (
 	"github.com/coinbase/rosetta-sdk-go/asserter"
 	"github.com/coinbase/rosetta-sdk-go/server"
 	"github.com/ross-weir/rosetta-ergo/configuration"
+	"github.com/ross-weir/rosetta-ergo/ergo"
 )
 
 func NewBlockchainRouter(
 	cfg *configuration.Configuration,
+	client *ergo.Client,
 	asserter *asserter.Asserter,
 ) http.Handler {
 

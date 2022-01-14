@@ -43,6 +43,23 @@ var (
 	}
 )
 
+func startOnlineDependencies(
+	ctx context.Context,
+	cancel context.CancelFunc,
+	cfg *configuration.Configuration,
+	g *errgroup.Group,
+	l *zap.Logger,
+) (*ergo.Client, error) {
+	client := ergo.NewClient(
+		ergo.LocalNodeURL(cfg.NodePort),
+		cfg.GenesisBlockIdentifier,
+		cfg.Currency,
+		l,
+	)
+
+	return client, nil
+}
+
 func runCmdHandler(cmd *cobra.Command, args []string) error {
 	zapLogger, err := zap.NewDevelopment()
 
@@ -85,12 +102,26 @@ func runCmdHandler(cmd *cobra.Command, args []string) error {
 
 	logger.Info("loaded asserter server")
 
-	// TODO: create ergo client
+	var client *ergo.Client
+	if cfg.Mode == configuration.Online {
+		client, err = startOnlineDependencies(ctx, cancel, cfg, g, zapLogger)
+		if err != nil {
+			logger.Fatalw("unable to start online dependencies", "error", err)
+		}
+	}
 
-	router := services.NewBlockchainRouter(cfg, asserter)
+	logger.Info("loaded ergo node client")
+
+	ns, err := client.NetworkStatus(ctx)
+	if err != nil {
+		logger.Fatalw("client err", "error", err)
+	}
+
+	logger.Infow("network status", "status", types.PrettyPrintStruct(ns))
+
+	router := services.NewBlockchainRouter(cfg, client, asserter)
 	loggedRouter := services.LoggerMiddleware(zapLogger, router)
 	corsRouter := server.CorsMiddleware(loggedRouter)
-
 	server := &http.Server{
 		Addr:         fmt.Sprintf(":%d", cfg.RosettaPort),
 		Handler:      corsRouter,
@@ -100,7 +131,7 @@ func runCmdHandler(cmd *cobra.Command, args []string) error {
 	}
 
 	g.Go(func() error {
-		logger.Infow("server listening", "port", cfg.RosettaPort)
+		logger.Infow("rosetta server listening", "port", cfg.RosettaPort)
 
 		return server.ListenAndServe()
 	})

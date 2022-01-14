@@ -20,8 +20,8 @@ const (
 	Mainnet string = "MAINNET"
 	Testnet string = "TESTNET"
 
-	mainnetNodePort = 9030
-	testnetNodePort = 9020
+	mainnetNodePort = 9053
+	testnetNodePort = 9052
 
 	DataDir = "/data"
 
