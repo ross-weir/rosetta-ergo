@@ -104,6 +104,7 @@ func (e *Client) NetworkStatus(ctx context.Context) (*types.NetworkStatusRespons
 	}, nil
 }
 
+// Get list of connected `Peer`s for ergo
 func (e *Client) GetPeers(ctx context.Context) ([]*types.Peer, error) {
 	connectedPeers, err := e.getConnectedPeers(ctx)
 	if err != nil {
@@ -114,7 +115,7 @@ func (e *Client) GetPeers(ctx context.Context) ([]*types.Peer, error) {
 	for i, connectedPeer := range connectedPeers {
 		peer, err := ergoPeerToRosettaPeer(&connectedPeer)
 		if err != nil {
-			return nil, fmt.Errorf("%w: unable to convert peer", err)
+			return nil, fmt.Errorf("%w: unable to convert ergo peer to rosetta peer", err)
 		}
 
 		peers[i] = peer
