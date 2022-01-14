@@ -12,6 +12,7 @@ import (
 	"github.com/coinbase/rosetta-sdk-go/types"
 	"github.com/ross-weir/rosetta-ergo/configuration"
 	"github.com/ross-weir/rosetta-ergo/ergo"
+	"github.com/ross-weir/rosetta-ergo/indexer"
 	"github.com/ross-weir/rosetta-ergo/services"
 	"github.com/spf13/cobra"
 	"go.uber.org/zap"
@@ -47,7 +48,7 @@ func startOnlineDependencies(
 	cfg *configuration.Configuration,
 	g *errgroup.Group,
 	l *zap.Logger,
-) (*ergo.Client, error) {
+) (*ergo.Client, *indexer.Indexer, error) {
 	client := ergo.NewClient(
 		ergo.LocalNodeURL(cfg.NodePort),
 		cfg.GenesisBlockIdentifier,
@@ -55,7 +56,18 @@ func startOnlineDependencies(
 		l,
 	)
 
-	return client, nil
+	i, err := indexer.InitIndexer(
+		ctx,
+		cancel,
+		cfg,
+		client,
+		l,
+	)
+	if err != nil {
+		return nil, nil, fmt.Errorf("%w: unable to initialize indexer", err)
+	}
+
+	return client, i, nil
 }
 
 func runCmdHandler(cmd *cobra.Command, args []string) error {
@@ -82,7 +94,7 @@ func runCmdHandler(cmd *cobra.Command, args []string) error {
 
 	g, ctx := errgroup.WithContext(ctx)
 
-	cfg, err := configuration.LoadConfiguration(configuration.DataDir)
+	cfg, err := configuration.LoadConfiguration()
 	if err != nil {
 		logger.Fatalw("unable to load configuration", "error", err)
 	}
@@ -106,8 +118,9 @@ func runCmdHandler(cmd *cobra.Command, args []string) error {
 	logger.Info("loaded asserter server")
 
 	var client *ergo.Client
+	var i *indexer.Indexer
 	if cfg.Mode == configuration.Online {
-		client, err = startOnlineDependencies(ctx, cancel, cfg, g, zapLogger)
+		client, i, err = startOnlineDependencies(ctx, cancel, cfg, g, zapLogger)
 		if err != nil {
 			logger.Fatalw("unable to start online dependencies", "error", err)
 		}
@@ -143,7 +156,10 @@ func runCmdHandler(cmd *cobra.Command, args []string) error {
 
 	err = g.Wait()
 
-	// TODO: close indexer/syncer db gracefully
+	// Attempt to close the database gracefullly after all indexer goroutines have stopped.
+	if i != nil {
+		i.CloseDatabase(ctx)
+	}
 
 	if SignalReceived {
 		logger.Info("rosetta-ergo halted")

@@ -3,6 +3,7 @@ package configuration
 import (
 	"fmt"
 	"os"
+	"path"
 	"strconv"
 
 	"github.com/coinbase/rosetta-sdk-go/types"
@@ -26,7 +27,12 @@ const (
 	mainnetNodePort = 9053
 	testnetNodePort = 9052
 
-	DataDir = "/data"
+	// Appended to the data directory supplied by RosettaDataDirEnv
+	indexerPath = "indexer"
+
+	// allFilePermissions specifies anyone can do anything
+	// to the file.
+	allFilePermissions = 0777
 
 	// TODO: node configuration
 	// TODO: node config file path, etc
@@ -38,6 +44,11 @@ const (
 	// Online vs Offline mode, see more:
 	// https://www.rosetta-api.org/docs/node_deployment.html#multiple-modes
 	RosettaModeEnv = "ROSETTA_MODE"
+
+	// The directory used for rosetta data, this should almost always be /data, unless testing
+	// locally
+	// See more: https://docs.cloud.coinbase.com/rosetta/docs/standard-storage-location
+	RosettaDataDirEnv = "ROSETTA_DATA_DIR"
 
 	// The network we're operating in for the ergo blockchain
 	// mainnet vs testnet
@@ -55,16 +66,23 @@ type Configuration struct {
 	GenesisBlockIdentifier *types.BlockIdentifier
 	RosettaPort            int
 	NodePort               int
+	IndexerPath            string
 }
 
 // Create a new configuration based on settings above and env variables
-func LoadConfiguration(baseDirectory string) (*Configuration, error) {
+func LoadConfiguration() (*Configuration, error) {
 	cfg := &Configuration{}
+	baseDirectory := getEnv(RosettaDataDirEnv)
 
 	modeValue := Mode(getEnv(RosettaModeEnv))
 	switch modeValue {
 	case Online:
 		cfg.Mode = Online
+		cfg.IndexerPath = path.Join(baseDirectory, indexerPath)
+		if err := ensurePathExists(cfg.IndexerPath); err != nil {
+			return nil, fmt.Errorf("%w: unable to create indexer path", err)
+		}
+
 	case Offline:
 		cfg.Mode = Offline
 	case "":
@@ -120,4 +138,14 @@ func LoadConfiguration(baseDirectory string) (*Configuration, error) {
 
 func getEnv(key string) string {
 	return os.Getenv(EnvVarPrefix + key)
+}
+
+// ensurePathsExist directories along
+// a path if they do not exist.
+func ensurePathExists(path string) error {
+	if err := os.MkdirAll(path, os.FileMode(allFilePermissions)); err != nil {
+		return fmt.Errorf("%w: unable to create %s directory", err, path)
+	}
+
+	return nil
 }

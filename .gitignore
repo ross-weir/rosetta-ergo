@@ -11,6 +11,8 @@
 coverage.out
 coverage.xml
 
+data
+
 .env*
 !.env.example
 
