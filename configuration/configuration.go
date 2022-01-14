@@ -9,6 +9,9 @@ import (
 	"github.com/ross-weir/rosetta-ergo/ergo"
 )
 
+// Populated at build time using ldflags
+var Version string = "UNKNOWN"
+
 // Mode is the setting that determines if
 // the implementation is "online" or "offline".
 type Mode string
@@ -17,8 +20,8 @@ const (
 	Online  Mode = "ONLINE"
 	Offline Mode = "OFFLINE"
 
-	Mainnet string = "MAINNET"
-	Testnet string = "TESTNET"
+	Mainnet string = "mainnet"
+	Testnet string = "testnet"
 
 	mainnetNodePort = 9053
 	testnetNodePort = 9052
@@ -45,6 +48,7 @@ const (
 
 type Configuration struct {
 	Mode                   Mode
+	Version                string
 	Network                *types.NetworkIdentifier
 	Currency               *types.Currency
 	GenesisBlockIdentifier *types.BlockIdentifier
@@ -69,6 +73,7 @@ func LoadConfiguration(baseDirectory string) (*Configuration, error) {
 	}
 
 	cfg.Currency = ergo.Currency
+	cfg.Version = Version
 
 	// network specific configuration
 	networkValue := getEnv(NetworkEnv)

@@ -14,6 +14,11 @@ func NewBlockchainRouter(
 	client *ergo.Client,
 	asserter *asserter.Asserter,
 ) http.Handler {
+	networkAPIService := NewNetworkAPIService(cfg, client)
+	networkAPIController := server.NewNetworkAPIController(
+		networkAPIService,
+		asserter,
+	)
 
-	return server.NewRouter()
+	return server.NewRouter(networkAPIController)
 }

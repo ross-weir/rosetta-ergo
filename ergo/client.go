@@ -124,6 +124,18 @@ func (e *Client) GetPeers(ctx context.Context) ([]*types.Peer, error) {
 	return peers, nil
 }
 
+// Get information about the connected Ergo node
+func (e *Client) GetNodeInfo(ctx context.Context) (*ergotype.NodeInfo, error) {
+	nodeInfo := &ergotype.NodeInfo{}
+
+	err := e.makeRequest(ctx, nodeEndpointNodeInfo, http.MethodGet, nil, nodeInfo)
+	if err != nil {
+		return nil, fmt.Errorf("%w: error fetching node info", err)
+	}
+
+	return nodeInfo, nil
+}
+
 func (e *Client) getConnectedPeers(ctx context.Context) ([]ergotype.Peer, error) {
 	peers := []ergotype.Peer{}
 
@@ -133,17 +145,6 @@ func (e *Client) getConnectedPeers(ctx context.Context) ([]ergotype.Peer, error)
 	}
 
 	return peers, nil
-}
-
-func (e *Client) getNodeInfo(ctx context.Context) (*ergotype.NodeInfo, error) {
-	nodeInfo := &ergotype.NodeInfo{}
-
-	err := e.makeRequest(ctx, nodeEndpointNodeInfo, http.MethodGet, nil, nodeInfo)
-	if err != nil {
-		return nil, fmt.Errorf("%w: error fetching node info", err)
-	}
-
-	return nodeInfo, nil
 }
 
 func (e *Client) getLatestBlockHeaders(ctx context.Context, count int32) ([]ergotype.BlockHeader, error) {
