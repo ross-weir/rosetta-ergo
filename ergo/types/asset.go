@@ -13,7 +13,7 @@ package ergo
 // Asset Token detail in the transaction
 type Asset struct {
 	// Base16-encoded 32 byte digest
-	TokenId string `json:"tokenId"`
+	TokenID string `json:"tokenId"`
 	// Amount of the token
 	Amount int64 `json:"amount"`
 }

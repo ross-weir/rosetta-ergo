@@ -67,7 +67,12 @@ func runCmdHandler(cmd *cobra.Command, args []string) error {
 		log.Fatalf("failed to initialize zap logger: %v", err)
 	}
 
-	defer zapLogger.Sync()
+	defer func() {
+		err := zapLogger.Sync()
+		if err != nil {
+			log.Fatal(err)
+		}
+	}()
 
 	logger := zapLogger.Sugar().Named("main")
 

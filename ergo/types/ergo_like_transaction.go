@@ -13,7 +13,7 @@ package ergo
 // ErgoLikeTransaction struct for ErgoLikeTransaction
 type ErgoLikeTransaction struct {
 	// Base16-encoded 32 byte modifier id
-	Id         string                      `json:"id"`
+	ID         string                      `json:"id"`
 	Inputs     *[]ErgoTransactionInput     `json:"inputs"`
 	DataInputs *[]ErgoTransactionDataInput `json:"dataInputs"`
 	Outputs    *[]ErgoTransactionOutput    `json:"outputs"`

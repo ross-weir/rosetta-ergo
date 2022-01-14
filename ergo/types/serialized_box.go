@@ -13,7 +13,7 @@ package ergo
 // SerializedBox struct for SerializedBox
 type SerializedBox struct {
 	// Base16-encoded transaction box id bytes. Should be 32 bytes long
-	BoxId string `json:"boxId"`
+	BoxID string `json:"boxId"`
 	// Base16-encoded bytes
 	Bytes string `json:"bytes"`
 }

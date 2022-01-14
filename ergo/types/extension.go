@@ -13,7 +13,7 @@ package ergo
 // Extension struct for Extension
 type Extension struct {
 	// Base16-encoded 32 byte modifier id
-	HeaderId string `json:"headerId"`
+	HeaderID string `json:"headerId"`
 	// Base16-encoded 32 byte digest
 	Digest string `json:"digest"`
 	// List of key-value records

@@ -19,11 +19,11 @@ type NodeInfo struct {
 	// Can be 'null' if state is empty (no header applied since node launch)
 	HeadersHeight int32 `json:"headersHeight"`
 	// Can be 'null' if no full block is applied since node launch
-	BestFullHeaderId string `json:"bestFullHeaderId"`
+	BestFullHeaderID string `json:"bestFullHeaderId"`
 	// Can be 'null' if no full block is applied since node launch
-	PreviousFullHeaderId string `json:"previousFullHeaderId"`
+	PreviousFullHeaderID string `json:"previousFullHeaderId"`
 	// Can be 'null' if no header applied since node launch
-	BestHeaderId string `json:"bestHeaderId"`
+	BestHeaderID string `json:"bestHeaderId"`
 	// Can be 'null' if state is empty (no full block is applied since node launch)
 	StateRoot string `json:"stateRoot"`
 	StateType string `json:"stateType"`
@@ -45,6 +45,6 @@ type NodeInfo struct {
 	// Can be 'null' if no full block is applied since node launch
 	FullBlocksScore int64 `json:"fullBlocksScore"`
 	// Can be 'null' if genesis blocks is not produced yet
-	GenesisBlockId string      `json:"genesisBlockId"`
+	GenesisBlockID string      `json:"genesisBlockId"`
 	Parameters     *Parameters `json:"parameters"`
 }

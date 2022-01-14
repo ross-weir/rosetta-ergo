@@ -10,8 +10,8 @@
 
 package ergo
 
-// ApiError struct for ApiError
-type ApiError struct {
+// APIError struct for APIError
+type APIError struct {
 	// Error code
 	Error int32 `json:"error"`
 	// String error code

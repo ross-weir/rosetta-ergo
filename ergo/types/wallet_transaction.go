@@ -13,7 +13,7 @@ package ergo
 // WalletTransaction Transaction augmented with some useful information
 type WalletTransaction struct {
 	// Base16-encoded transaction id bytes
-	Id *string `json:"id,omitempty"`
+	ID *string `json:"id,omitempty"`
 	// Transaction inputs
 	Inputs *[]ErgoTransactionInput `json:"inputs"`
 	// Transaction data inputs

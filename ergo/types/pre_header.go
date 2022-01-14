@@ -19,7 +19,7 @@ type PreHeader struct {
 	NBits   int64 `json:"nBits"`
 	Height  int32 `json:"height"`
 	// Base16-encoded 32 byte modifier id
-	ParentId string `json:"parentId"`
+	ParentID string `json:"parentId"`
 	// Base16-encoded votes for a soft-fork and parameters
 	Votes   string  `json:"votes"`
 	MinerPk *string `json:"minerPk,omitempty"`

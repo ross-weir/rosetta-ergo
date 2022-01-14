@@ -13,7 +13,7 @@ package ergo
 // BlockAdProofs struct for BlockAdProofs
 type BlockAdProofs struct {
 	// Base16-encoded 32 byte modifier id
-	HeaderId string `json:"headerId"`
+	HeaderID string `json:"headerId"`
 	// Base16-encoded ad proofs
 	ProofBytes string `json:"proofBytes"`
 	// Base16-encoded 32 byte digest

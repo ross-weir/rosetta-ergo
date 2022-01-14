@@ -76,6 +76,12 @@ rm -f ergo/types/commitment.go
 rm -f ergo/types/commitment_with_secret.go
 rm -f ergo/types/execute_script.go
 
+# fix linting issues
+sed "${SED_IFLAG[@]}" 's/Api/API/g' ergo/types/*;
+sed "${SED_IFLAG[@]}" 's/Json/JSON/g' ergo/types/*;
+sed "${SED_IFLAG[@]}" 's/Id /ID /g' ergo/types/*;
+sed "${SED_IFLAG[@]}" 's/Url/URL/g' ergo/types/*;
+
 # format generated code
 FORMAT_GEN="gofmt -w /local/ergo/types"
 GOLANG_VERSION=1.17
