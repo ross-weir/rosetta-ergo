@@ -12,7 +12,8 @@ package ergo
 
 // Parameters struct for Parameters
 type Parameters struct {
-	// Height when current parameters were considered(not actual height). Can be '0' if state is empty
+	// Height when current parameters were considered(not actual height). Can be '0' if state is
+	// empty
 	Height int32 `json:"height"`
 	// Storage fee coefficient (per byte per storage period ~4 years)
 	StorageFeeFactor int32 `json:"storageFeeFactor"`

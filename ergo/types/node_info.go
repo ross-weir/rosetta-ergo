@@ -34,7 +34,8 @@ type NodeInfo struct {
 	PeersCount int32 `json:"peersCount"`
 	// Current unconfirmed transactions count
 	UnconfirmedCount int32 `json:"unconfirmedCount"`
-	// Difficulty on current bestFullHeaderId. Can be 'null' if no full block is applied since node launch
+	// Difficulty on current bestFullHeaderId. Can be 'null' if no full block is applied since node
+	// launch
 	Difficulty int64 `json:"difficulty"`
 	// Current internal node time
 	CurrentTime int64 `json:"currentTime"`

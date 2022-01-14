@@ -147,10 +147,19 @@ func (e *Client) getConnectedPeers(ctx context.Context) ([]ergotype.Peer, error)
 	return peers, nil
 }
 
-func (e *Client) getLatestBlockHeaders(ctx context.Context, count int32) ([]ergotype.BlockHeader, error) {
+func (e *Client) getLatestBlockHeaders(
+	ctx context.Context,
+	count int32,
+) ([]ergotype.BlockHeader, error) {
 	blockHeaders := []ergotype.BlockHeader{}
 
-	err := e.makeRequest(ctx, nodeEndpoint(fmt.Sprintf("%s/%d", nodeEndpointLastBlockHeaders, count)), http.MethodGet, nil, &blockHeaders)
+	err := e.makeRequest(
+		ctx,
+		nodeEndpoint(fmt.Sprintf("%s/%d", nodeEndpointLastBlockHeaders, count)),
+		http.MethodGet,
+		nil,
+		&blockHeaders,
+	)
 	if err != nil {
 		return nil, fmt.Errorf("%w: error fetching last %d block headers", err, count)
 	}
@@ -177,7 +186,11 @@ func (e *Client) makeRequest(
 		}
 	}
 
-	req, err := http.NewRequest(requestMethod, e.baseURL+"/"+string(endpoint), bytes.NewReader(requestBodyJSON))
+	req, err := http.NewRequest(
+		requestMethod,
+		e.baseURL+"/"+string(endpoint),
+		bytes.NewReader(requestBodyJSON),
+	)
 	// e.logger.Infow("request to node", "request", types.PrettyPrintStruct(req))
 	if err != nil {
 		return fmt.Errorf("%w: error constructing request", err)
