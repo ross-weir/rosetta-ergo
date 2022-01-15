@@ -13,6 +13,17 @@
 ## Overview
 `rosetta-ergo` provides a reference implementation of the Rosetta API for Ergo in Golang. If you haven't heard of the Rosetta API, you can find more information [here](https://rosetta-api.org).
 
+## Terminology
+
+Rosetta uses abstract terminology to represent entities in a blockchain.
+
+Here's how they relate to ergo:
+
+| Rosetta   | Ergo               | Notes                 |
+|-----------|--------------------|-----------------------|
+| `coin`    | `utxo`, `ergo box` |                       |
+| `account` | `address`          | Any ergo address type |
+
 ## Implementation status
 
 ### Data
