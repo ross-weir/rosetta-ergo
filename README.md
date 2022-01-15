@@ -8,6 +8,7 @@
 </h3>
 <p align="center">
   <a href="https://github.com/ross-weir/rosetta-ergo/actions/workflows/ci.yml"><img src="https://github.com/ross-weir/rosetta-ergo/actions/workflows/ci.yml/badge.svg" /></a>
+  <a href="https://goreportcard.com/report/github.com/ross-weir/rosetta-ergo"><img src="https://goreportcard.com/badge/github.com/ross-weir/rosetta-ergo" /></a>
 </p>
 
 ## Overview
