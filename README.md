@@ -40,7 +40,7 @@ Here's how they relate to ergo:
   - [ ] `/block`
   - [ ] `/block/transaction`
 - [ ] `Mempool`
-  - [ ] `/mempool`
+  - [x] ~~`/mempool`~~
   - [ ] `/mempool/transaction`
 
 ### Construction

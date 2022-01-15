@@ -24,6 +24,8 @@ const (
 	nodeEndpointBlock            nodeEndpoint = "blocks"
 	nodeEndpointLastBlockHeaders nodeEndpoint = "blocks/lastHeaders"
 	nodeEndpointBlockAtHeight    nodeEndpoint = "blocks/at"
+
+	nodeEndpointTxUnconfirmed nodeEndpoint = "transactions/unconfirmed"
 )
 
 const (
@@ -138,7 +140,7 @@ func (e *Client) GetNodeInfo(ctx context.Context) (*ergotype.NodeInfo, error) {
 	return nodeInfo, nil
 }
 
-// GetBlock
+// GetBlock fetches a full Ergo block
 func (e *Client) GetRawBlock(
 	ctx context.Context,
 	identifier *types.PartialBlockIdentifier,
@@ -164,6 +166,18 @@ func (e *Client) GetRawBlock(
 	// TODO: as per types.PartialBlockIdentifier if neither is specified get the current block
 
 	return nil, nil
+}
+
+// GetUnconfirmedTxs gets all the unconfirmed transactions currently in mempool
+func (e *Client) GetUnconfirmedTxs(ctx context.Context) ([]ergotype.ErgoTransaction, error) {
+	txs := []ergotype.ErgoTransaction{}
+
+	err := e.makeRequest(ctx, nodeEndpointTxUnconfirmed, http.MethodGet, nil, &txs)
+	if err != nil {
+		return nil, fmt.Errorf("%w: error fetching unconfirmed txs", err)
+	}
+
+	return txs, nil
 }
 
 func (e *Client) getConnectedPeers(ctx context.Context) ([]ergotype.Peer, error) {
