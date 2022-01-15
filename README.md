@@ -6,6 +6,9 @@
 <h3 align="center">
    Rosetta Ergo
 </h3>
+<p align="center">
+  <a href="https://github.com/ross-weir/rosetta-ergo/actions/workflows/ci.yml"><img src="https://github.com/ross-weir/rosetta-ergo/actions/workflows/ci.yml/badge.svg" /></a>
+</p>
 
 ## Overview
 `rosetta-ergo` provides a reference implementation of the Rosetta API for Ergo in Golang. If you haven't heard of the Rosetta API, you can find more information [here](https://rosetta-api.org).
