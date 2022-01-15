@@ -1,0 +1,44 @@
+run:
+  skip-dirs:
+    - ergo/types
+linter-settings:
+  goconst:
+    min-len: 2
+    min-occurrences: 2
+  goimports:
+    local-prefixes: github.com/ross-weir/rosetta-ergo
+  lll:
+    line-length: 140
+linters:
+  disable-all: true
+  enable:
+    - bodyclose
+    - deadcode
+    - depguard
+    - dogsled
+    - dupl
+    - errcheck
+    - goconst
+    - gocritic
+    - gocyclo
+    - gofmt
+    - goimports
+    - gomnd
+    - goprintffuncname
+    - gosec
+    - gosimple
+    - govet
+    - ineffassign
+    - lll
+    - misspell
+    - nakedret
+    - rowserrcheck
+    - revive
+    - staticcheck
+    - structcheck
+    - stylecheck
+    - typecheck
+    - unconvert
+    - unused
+    - varcheck
+    - whitespace
