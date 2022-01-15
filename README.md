@@ -14,10 +14,10 @@
 
 ### Data
 
-- [x] `Network`
-  - [x] `/network/list`
-  - [x] `/network/options`
-  - [x] `/network/status`
+- [x] ~~`Network`~~
+  - [x] ~~`/network/list`~~
+  - [x] ~~`/network/options`~~
+  - [x] ~~`/network/status`~~
 - [ ] `Account`
   - [ ] `/account/balance`
   - [ ] `/account/coins`
