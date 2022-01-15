@@ -13,3 +13,6 @@ jobs:
         uses: golangci/golangci-lint-action@v2
         with:
           version: v1.43.0
+          # For some reason this can run really really slow in CI
+          # https://github.com/golangci/golangci-lint-action/issues/308
+          args: --timeout=3m
