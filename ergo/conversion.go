@@ -85,9 +85,10 @@ func ergoBlockToRosettaTxs(
 
 	// TODO: might be able to just pass BlockTransactions
 	txs := make([]*types.Transaction, len(*fb.BlockTransactions.Transactions))
+	blockTxs := *fb.BlockTransactions.Transactions
 
-	for index, transaction := range *fb.BlockTransactions.Transactions {
-		txOps, err := ergoTransactionToRosettaOps(ctx, e, &transaction, coins)
+	for index, transaction := range blockTxs {
+		txOps, err := ergoTransactionToRosettaOps(ctx, e, &blockTxs[index], coins)
 		if err != nil {
 			return nil, fmt.Errorf(
 				"%w: error parsing transaction operations, txId: %s",
@@ -139,8 +140,9 @@ func ergoTransactionToRosettaOps(
 	coins map[string]*types.AccountCoin,
 ) ([]*types.Operation, error) {
 	txOps := []*types.Operation{}
+	inputs := *tx.Inputs
 
-	for inputIndex, input := range *tx.Inputs {
+	for inputIndex, input := range inputs {
 		// get the account coin related to this input (i.e the previous unspent utxo)
 		// this is needed for value, etc
 		accountCoin, ok := coins[input.BoxID]
@@ -149,7 +151,7 @@ func ergoTransactionToRosettaOps(
 		}
 
 		txOp, err := ergoInputToRosettaTxOp(
-			&input,
+			&inputs[inputIndex],
 			int64(len(txOps)),
 			int64(inputIndex),
 			accountCoin,
@@ -161,8 +163,9 @@ func ergoTransactionToRosettaOps(
 		txOps = append(txOps, txOp)
 	}
 
-	for _, output := range *tx.Outputs {
-		txOp, err := ergoOutputToRosettaTxOp(ctx, e, &output, int64(len(txOps)))
+	outputs := *tx.Outputs
+	for i, output := range outputs {
+		txOp, err := ergoOutputToRosettaTxOp(ctx, e, &outputs[i], int64(len(txOps)))
 		if err != nil {
 			return nil, fmt.Errorf("%w: error parsing tx output, boxId: %s", err, *output.BoxID)
 		}
@@ -225,6 +228,7 @@ func ergoOutputToRosettaTxOp(
 	}
 
 	account := &types.AccountIdentifier{Address: *addr}
+	intBase := 10
 
 	return &types.Operation{
 		OperationIdentifier: &types.OperationIdentifier{
@@ -235,7 +239,7 @@ func ergoOutputToRosettaTxOp(
 		Status:  types.String(SuccessStatus),
 		Account: account,
 		Amount: &types.Amount{
-			Value:    strconv.FormatInt(output.Value, 10),
+			Value:    strconv.FormatInt(output.Value, intBase),
 			Currency: Currency,
 		},
 		CoinChange: coinChange,

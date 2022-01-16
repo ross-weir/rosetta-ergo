@@ -14,7 +14,6 @@ import (
 	"github.com/coinbase/rosetta-sdk-go/storage/modules"
 	"github.com/coinbase/rosetta-sdk-go/syncer"
 	"github.com/coinbase/rosetta-sdk-go/types"
-	"github.com/coinbase/rosetta-sdk-go/utils"
 	sdkUtils "github.com/coinbase/rosetta-sdk-go/utils"
 	"github.com/dgraph-io/badger/v2"
 	"github.com/dgraph-io/badger/v2/options"
@@ -690,12 +689,12 @@ func (i *Indexer) bootstrapGenesisState(ctx context.Context) error {
 
 	var accountCoins []types.AccountCoin
 
-	err = utils.LoadAndParse(i.cfg.GenesisUtxoPath, &accountCoins)
+	err = sdkUtils.LoadAndParse(i.cfg.GenesisUtxoPath, &accountCoins)
 	if err != nil {
 		return err
 	}
 
-	importedCoins := make([]*utils.AccountBalance, len(accountCoins))
+	importedCoins := make([]*sdkUtils.AccountBalance, len(accountCoins))
 
 	for i, coin := range accountCoins {
 		importedCoins[i] = &sdkUtils.AccountBalance{
