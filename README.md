@@ -36,9 +36,9 @@ Here's how they relate to ergo:
 - [ ] `Account`
   - [ ] `/account/balance`
   - [ ] `/account/coins`
-- [ ] `Block`
-  - [ ] `/block`
-  - [ ] `/block/transaction`
+- [x] ~~`Block`~~
+  - [x] ~~`/block`~~
+  - [x] ~~`/block/transaction`~~
 - [ ] `Mempool`
   - [x] ~~`/mempool`~~
   - [ ] `/mempool/transaction`

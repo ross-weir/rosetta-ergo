@@ -29,6 +29,10 @@ const (
 
 	// Appended to the data directory supplied by RosettaDataDirEnv
 	indexerPath = "indexer"
+	// Appended to the data directory, contains utxos that existed before genesis block
+	genesisUtxoPath = "genesis_utxos.json"
+	// Path to balances to bootstrap
+	bootstrapBalancePath = "bootstrap_balances.json"
 
 	// allFilePermissions specifies anyone can do anything
 	// to the file.
@@ -67,6 +71,8 @@ type Configuration struct {
 	RosettaPort            int
 	NodePort               int
 	IndexerPath            string
+	GenesisUtxoPath        string
+	BootstrapBalancePath   string
 }
 
 // Create a new configuration based on settings above and env variables
@@ -82,6 +88,9 @@ func LoadConfiguration() (*Configuration, error) {
 		if err := ensurePathExists(cfg.IndexerPath); err != nil {
 			return nil, fmt.Errorf("%w: unable to create indexer path", err)
 		}
+
+		cfg.GenesisUtxoPath = path.Join(baseDirectory, genesisUtxoPath)
+		cfg.BootstrapBalancePath = path.Join(baseDirectory, bootstrapBalancePath)
 
 	case Offline:
 		cfg.Mode = Offline

@@ -14,6 +14,7 @@ import (
 	"github.com/ross-weir/rosetta-ergo/ergo"
 	"github.com/ross-weir/rosetta-ergo/indexer"
 	"github.com/ross-weir/rosetta-ergo/services"
+	"github.com/ross-weir/rosetta-ergo/utils"
 	"github.com/spf13/cobra"
 	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
@@ -97,6 +98,10 @@ func runCmdHandler(cmd *cobra.Command, args []string) error {
 	go handleSignals([]context.CancelFunc{cancel})
 
 	g, ctx := errgroup.WithContext(ctx)
+
+	g.Go(func() error {
+		return utils.MonitorMemoryUsage(ctx, -1, zapLogger)
+	})
 
 	cfg, err := configuration.LoadConfiguration()
 	if err != nil {
