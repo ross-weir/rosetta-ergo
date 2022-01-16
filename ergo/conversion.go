@@ -15,9 +15,10 @@ const (
 	genesisBlockIndex = 1
 )
 
-// Convert a ergo `FullBlock` to a rosetta `Block`
+// ErgoBlockToRosetta converts a ergo `FullBlock` to a rosetta `Block`
 func ErgoBlockToRosetta( //revive:disable-line:exported
 	ctx context.Context,
+	e *Client,
 	b *ergotype.FullBlock,
 	coins map[string]*types.AccountCoin,
 ) (*types.Block, error) {
@@ -30,7 +31,7 @@ func ErgoBlockToRosetta( //revive:disable-line:exported
 		return nil, err
 	}
 
-	txs, err := ergoBlockToRosettaTxs(ctx, b, coins)
+	txs, err := ergoBlockToRosettaTxs(ctx, e, b, coins)
 	if err != nil {
 		return nil, err
 	}
@@ -74,6 +75,7 @@ func ergoBlockHeaderToRosettaBlock(
 // ergoBlockToRosettaTxs extracts rosetta transactions from ergo full block
 func ergoBlockToRosettaTxs(
 	ctx context.Context,
+	e *Client,
 	fb *ergotype.FullBlock,
 	coins map[string]*types.AccountCoin,
 ) ([]*types.Transaction, error) {
@@ -85,7 +87,7 @@ func ergoBlockToRosettaTxs(
 	txs := make([]*types.Transaction, len(*fb.BlockTransactions.Transactions))
 
 	for index, transaction := range *fb.BlockTransactions.Transactions {
-		txOps, err := ergoTransactionToRosettaOps(&transaction)
+		txOps, err := ergoTransactionToRosettaOps(ctx, e, &transaction, coins)
 		if err != nil {
 			return nil, fmt.Errorf(
 				"%w: error parsing transaction operations, txId: %s",
@@ -130,23 +132,27 @@ func ergoBlockToRosettaTxs(
 }
 
 // ergoTransactionToRosettaOps extracts rosetta operations from an ergo transactions inputs/outputs
-func ergoTransactionToRosettaOps(tx *ergotype.ErgoTransaction) ([]*types.Operation, error) {
+func ergoTransactionToRosettaOps(ctx context.Context, e *Client, tx *ergotype.ErgoTransaction, coins map[string]*types.AccountCoin) ([]*types.Operation, error) {
 	txOps := []*types.Operation{}
 
 	for inputIndex, input := range *tx.Inputs {
 		// get the account coin related to this input (i.e the previous unspent utxo)
 		// this is needed for value, etc
+		accountCoin, ok := coins[input.BoxID]
+		if !ok {
+			return nil, fmt.Errorf("error finding input %s, for tx: %s", input.BoxID, *tx.ID)
+		}
 
-		txOp, err := ergoInputToRosettaTxOp(&input, int64(len(txOps)), int64(inputIndex))
+		txOp, err := ergoInputToRosettaTxOp(&input, int64(len(txOps)), int64(inputIndex), accountCoin)
 		if err != nil {
-			return nil, fmt.Errorf("%w: error parsing tx input", err)
+			return nil, fmt.Errorf("%w: error parsing tx input, boxId: %s", err, input.BoxID)
 		}
 
 		txOps = append(txOps, txOp)
 	}
 
 	for _, output := range *tx.Outputs {
-		txOp, err := ergoOutputToRosettaTxOp(&output, int64(len(txOps)))
+		txOp, err := ergoOutputToRosettaTxOp(ctx, e, &output, int64(len(txOps)))
 		if err != nil {
 			return nil, fmt.Errorf("%w: error parsing tx output, boxId: %s", err, *output.BoxID)
 		}
@@ -161,12 +167,38 @@ func ergoInputToRosettaTxOp(
 	input *ergotype.ErgoTransactionInput,
 	operationIndex int64,
 	inputIndex int64,
+	coin *types.AccountCoin,
 ) (*types.Operation, error) {
+	negatedVal, err := types.NegateValue(coin.Coin.Amount.Value)
+	if err != nil {
+		return nil, fmt.Errorf("%w: unable to negate previous output", err)
+	}
 
-	return nil, nil
+	return &types.Operation{
+		OperationIdentifier: &types.OperationIdentifier{
+			Index:        operationIndex,
+			NetworkIndex: &inputIndex,
+		},
+		Type:    InputOpType,
+		Status:  types.String(SuccessStatus),
+		Account: coin.Account,
+		Amount: &types.Amount{
+			Value:    negatedVal,
+			Currency: Currency,
+		},
+		CoinChange: &types.CoinChange{
+			CoinIdentifier: &types.CoinIdentifier{
+				Identifier: input.BoxID,
+			},
+			CoinAction: types.CoinSpent,
+		},
+		// metadata
+	}, nil
 }
 
 func ergoOutputToRosettaTxOp(
+	ctx context.Context,
+	e *Client,
 	output *ergotype.ErgoTransactionOutput,
 	operationIndex int64,
 ) (*types.Operation, error) {
@@ -177,16 +209,21 @@ func ergoOutputToRosettaTxOp(
 		CoinAction: types.CoinCreated,
 	}
 
-	// get the account (pk)
+	addr, err := e.TreeToAddress(ctx, output.ErgoTree)
+	if err != nil {
+		return nil, fmt.Errorf("%w: failed to get address from ergo tree", err)
+	}
+
+	account := &types.AccountIdentifier{Address: *addr}
 
 	return &types.Operation{
 		OperationIdentifier: &types.OperationIdentifier{
 			Index:        operationIndex,
 			NetworkIndex: types.Int64(int64(*output.Index)),
 		},
-		Type:   OutputOpType,
-		Status: types.String(SuccessStatus),
-		//Account
+		Type:    OutputOpType,
+		Status:  types.String(SuccessStatus),
+		Account: account,
 		Amount: &types.Amount{
 			Value:    strconv.FormatInt(output.Value, 10),
 			Currency: Currency,

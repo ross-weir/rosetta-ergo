@@ -27,6 +27,8 @@ const (
 	nodeEndpointBlockAtHeight    nodeEndpoint = "blocks/at"
 
 	nodeEndpointTxUnconfirmed nodeEndpoint = "transactions/unconfirmed"
+
+	nodeEndpointTreeToAddress nodeEndpoint = "utils/ergoTreeToAddress"
 )
 
 const (
@@ -83,7 +85,7 @@ func newHTTPClient(timeout time.Duration) *http.Client {
 	return httpClient
 }
 
-// Get `NetworkStatusResponse` for ergo
+// NetworkStatus gets the `NetworkStatusResponse` for ergo
 func (e *Client) NetworkStatus(ctx context.Context) (*types.NetworkStatusResponse, error) {
 	// get current block id / timestamp
 	currentBlockHeader, err := e.getLatestBlockHeaders(ctx, 1)
@@ -109,7 +111,7 @@ func (e *Client) NetworkStatus(ctx context.Context) (*types.NetworkStatusRespons
 	}, nil
 }
 
-// Get list of connected `Peer`s for ergo
+// GetPeers gets a list of connected `Peer`s for ergo
 func (e *Client) GetPeers(ctx context.Context) ([]*types.Peer, error) {
 	connectedPeers, err := e.getConnectedPeers(ctx)
 	if err != nil {
@@ -129,7 +131,7 @@ func (e *Client) GetPeers(ctx context.Context) ([]*types.Peer, error) {
 	return peers, nil
 }
 
-// Get information about the connected Ergo node
+// GetNodeInfo gets information about the connected Ergo node
 func (e *Client) GetNodeInfo(ctx context.Context) (*ergotype.NodeInfo, error) {
 	nodeInfo := &ergotype.NodeInfo{}
 
@@ -201,6 +203,22 @@ func (e *Client) GetUnconfirmedTxs(ctx context.Context) ([]ergotype.ErgoTransact
 	}
 
 	return txs, nil
+}
+
+// IsGenesis checks if the provided block is the genesis block
+func (e *Client) IsGenesis(b *ergotype.FullBlock) bool {
+	return e.genesisBlockIdentifier.Hash == b.Header.ID
+}
+
+func (e *Client) TreeToAddress(ctx context.Context, et string) (*string, error) {
+	var addr = &ergotype.AddressHolder{}
+
+	err := e.makeRequest(ctx, nodeEndpoint(fmt.Sprintf("%s/%s", nodeEndpointTreeToAddress, et)), http.MethodGet, nil, addr)
+	if err != nil {
+		return nil, fmt.Errorf("%w: error converting ergo tree to address", err)
+	}
+
+	return &addr.Address, nil
 }
 
 func (e *Client) getConnectedPeers(ctx context.Context) ([]ergotype.Peer, error) {

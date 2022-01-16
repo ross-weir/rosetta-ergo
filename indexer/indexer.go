@@ -14,6 +14,7 @@ import (
 	"github.com/coinbase/rosetta-sdk-go/storage/modules"
 	"github.com/coinbase/rosetta-sdk-go/syncer"
 	"github.com/coinbase/rosetta-sdk-go/types"
+	"github.com/coinbase/rosetta-sdk-go/utils"
 	sdkUtils "github.com/coinbase/rosetta-sdk-go/utils"
 	"github.com/dgraph-io/badger/v2"
 	"github.com/dgraph-io/badger/v2/options"
@@ -63,6 +64,7 @@ type Indexer struct {
 	network *types.NetworkIdentifier
 
 	client         *ergo.Client
+	cfg            *configuration.Configuration
 	asserter       *asserter.Asserter
 	db             database.Database
 	blockStorage   *modules.BlockStorage
@@ -138,6 +140,7 @@ func InitIndexer(
 		cancel:         cancel,
 		network:        cfg.Network,
 		client:         client,
+		cfg:            cfg,
 		asserter:       asserter,
 		waiter:         newWaitTable(),
 		db:             localDB,
@@ -210,6 +213,16 @@ func (i *Indexer) Sync(ctx context.Context) error {
 	if err == nil {
 		startIndex = head.Index + 1
 	}
+	if err != nil {
+		i.logger.Info("first run, bootstrapping pre-genesis block utxo state")
+		err := i.bootstrapGenesisState(ctx)
+
+		if err != nil {
+			i.logger.Fatalf("%w: failed to bootstrap utxos, cannot continue", err)
+
+			return err
+		}
+	}
 
 	i.logger.Infof("start syncing from index %d", startIndex)
 
@@ -261,7 +274,7 @@ func (i *Indexer) Block(
 		return nil, fmt.Errorf("%w: unable to find inputs", err)
 	}
 
-	block, err := ergo.ErgoBlockToRosetta(ctx, ergoBlock, coinMap)
+	block, err := ergo.ErgoBlockToRosetta(ctx, i.client, ergoBlock, coinMap)
 	if err != nil {
 		return nil, err
 	}
@@ -476,7 +489,7 @@ func (i *Indexer) findCoins(
 	}
 
 	coinMap := map[string]*types.AccountCoin{}
-	remainingCoins := []*ergo.InputCtx{}
+	var remainingCoins []*ergo.InputCtx
 	for _, inputCtx := range coins {
 		coin, owner, err := i.findCoin(
 			ctx,
@@ -572,6 +585,8 @@ func (i *Indexer) findCoin(
 	block *ergotype.FullBlock,
 	inputCtx *ergo.InputCtx,
 ) (*types.Coin, *types.AccountIdentifier, error) {
+	isGenesis := i.client.IsGenesis(block)
+
 	for ctx.Err() == nil {
 		startSeen := i.seen
 		databaseTransaction := i.db.ReadTransaction(ctx)
@@ -581,14 +596,14 @@ func (i *Indexer) findCoin(
 			ctx,
 			databaseTransaction,
 		)
-		if errors.Is(err, storageErrs.ErrHeadBlockNotFound) {
+		if errors.Is(err, storageErrs.ErrHeadBlockNotFound) && !isGenesis {
 			if err := sdkUtils.ContextSleep(ctx, missingTransactionDelay); err != nil {
 				return nil, nil, err
 			}
 
 			continue
 		}
-		if err != nil {
+		if err != nil && !isGenesis {
 			return nil, nil, fmt.Errorf(
 				"%w: unable to get transactional head block identifier",
 				err,
@@ -660,6 +675,37 @@ func (i *Indexer) findCoin(
 	}
 
 	return nil, nil, ctx.Err()
+}
+
+// bootstrapGenesisState loads pre-genesis block utxos into the db
+func (i *Indexer) bootstrapGenesisState(ctx context.Context) error {
+	err := i.balanceStorage.BootstrapBalances(ctx, i.cfg.BootstrapBalancePath, i.cfg.GenesisBlockIdentifier)
+	if err != nil {
+		return err
+	}
+
+	var accountCoins []types.AccountCoin
+
+	err = utils.LoadAndParse(i.cfg.GenesisUtxoPath, &accountCoins)
+	if err != nil {
+		return err
+	}
+
+	importedCoins := make([]*utils.AccountBalance, len(accountCoins))
+
+	for i, coin := range accountCoins {
+		importedCoins[i] = &sdkUtils.AccountBalance{
+			Account: coin.Account,
+			Coins:   []*types.Coin{coin.Coin},
+		}
+	}
+
+	err = i.coinStorage.SetCoinsImported(ctx, importedCoins)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 // NetworkStatus is called by the syncer to get the current
