@@ -213,7 +213,13 @@ func (e *Client) IsGenesis(b *ergotype.FullBlock) bool {
 func (e *Client) TreeToAddress(ctx context.Context, et string) (*string, error) {
 	var addr = &ergotype.AddressHolder{}
 
-	err := e.makeRequest(ctx, nodeEndpoint(fmt.Sprintf("%s/%s", nodeEndpointTreeToAddress, et)), http.MethodGet, nil, addr)
+	err := e.makeRequest(
+		ctx,
+		nodeEndpoint(fmt.Sprintf("%s/%s", nodeEndpointTreeToAddress, et)),
+		http.MethodGet,
+		nil,
+		addr,
+	)
 	if err != nil {
 		return nil, fmt.Errorf("%w: error converting ergo tree to address", err)
 	}

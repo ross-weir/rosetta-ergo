@@ -132,7 +132,12 @@ func ergoBlockToRosettaTxs(
 }
 
 // ergoTransactionToRosettaOps extracts rosetta operations from an ergo transactions inputs/outputs
-func ergoTransactionToRosettaOps(ctx context.Context, e *Client, tx *ergotype.ErgoTransaction, coins map[string]*types.AccountCoin) ([]*types.Operation, error) {
+func ergoTransactionToRosettaOps(
+	ctx context.Context,
+	e *Client,
+	tx *ergotype.ErgoTransaction,
+	coins map[string]*types.AccountCoin,
+) ([]*types.Operation, error) {
 	txOps := []*types.Operation{}
 
 	for inputIndex, input := range *tx.Inputs {
@@ -143,7 +148,12 @@ func ergoTransactionToRosettaOps(ctx context.Context, e *Client, tx *ergotype.Er
 			return nil, fmt.Errorf("error finding input %s, for tx: %s", input.BoxID, *tx.ID)
 		}
 
-		txOp, err := ergoInputToRosettaTxOp(&input, int64(len(txOps)), int64(inputIndex), accountCoin)
+		txOp, err := ergoInputToRosettaTxOp(
+			&input,
+			int64(len(txOps)),
+			int64(inputIndex),
+			accountCoin,
+		)
 		if err != nil {
 			return nil, fmt.Errorf("%w: error parsing tx input, boxId: %s", err, input.BoxID)
 		}

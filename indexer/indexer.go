@@ -679,7 +679,11 @@ func (i *Indexer) findCoin(
 
 // bootstrapGenesisState loads pre-genesis block utxos into the db
 func (i *Indexer) bootstrapGenesisState(ctx context.Context) error {
-	err := i.balanceStorage.BootstrapBalances(ctx, i.cfg.BootstrapBalancePath, i.cfg.GenesisBlockIdentifier)
+	err := i.balanceStorage.BootstrapBalances(
+		ctx,
+		i.cfg.BootstrapBalancePath,
+		i.cfg.GenesisBlockIdentifier,
+	)
 	if err != nil {
 		return err
 	}
