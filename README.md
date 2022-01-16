@@ -33,9 +33,9 @@ Here's how they relate to ergo:
   - [x] ~~`/network/list`~~
   - [x] ~~`/network/options`~~
   - [x] ~~`/network/status`~~
-- [ ] `Account`
-  - [ ] `/account/balance`
-  - [ ] `/account/coins`
+- [x] ~~`Account`~~
+  - [x] ~~`/account/balance`~~
+  - [x] ~~`/account/coins`~~
 - [x] ~~`Block`~~
   - [x] ~~`/block`~~
   - [x] ~~`/block/transaction`~~

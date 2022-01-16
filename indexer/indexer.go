@@ -753,3 +753,51 @@ func (i *Indexer) GetBlock(
 ) (*types.Block, error) {
 	return i.blockStorage.GetBlock(ctx, id)
 }
+
+// GetCoins returns all unspent coins for a particular *types.AccountIdentifier.
+func (i *Indexer) GetCoins(
+	ctx context.Context,
+	accountIdentifier *types.AccountIdentifier,
+) ([]*types.Coin, *types.BlockIdentifier, error) {
+	return i.coinStorage.GetCoins(ctx, accountIdentifier)
+}
+
+// GetBalance returns the balance of an account
+// at a particular *types.PartialBlockIdentifier.
+func (i *Indexer) GetBalance(
+	ctx context.Context,
+	accountIdentifier *types.AccountIdentifier,
+	currency *types.Currency,
+	blockIdentifier *types.PartialBlockIdentifier,
+) (*types.Amount, *types.BlockIdentifier, error) {
+	dbTx := i.db.ReadTransaction(ctx)
+	defer dbTx.Discard(ctx)
+
+	blockResponse, err := i.blockStorage.GetBlockLazyTransactional(
+		ctx,
+		blockIdentifier,
+		dbTx,
+	)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	amount, err := i.balanceStorage.GetBalanceTransactional(
+		ctx,
+		dbTx,
+		accountIdentifier,
+		currency,
+		blockResponse.Block.BlockIdentifier.Index,
+	)
+	if errors.Is(err, storageErrs.ErrAccountMissing) {
+		return &types.Amount{
+			Value:    zeroValue,
+			Currency: currency,
+		}, blockResponse.Block.BlockIdentifier, nil
+	}
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return amount, blockResponse.Block.BlockIdentifier, nil
+}

@@ -21,10 +21,10 @@ var (
 		// ErrUnableToCalculateSignatureHash,
 		// ErrUnsupportedScriptType,
 		// ErrUnableToComputePkScript,
-		// ErrUnableToGetCoins,
+		ErrUnableToGetCoins,
 		ErrTransactionNotFound,
 		// ErrCouldNotGetFeeRate,
-		// ErrUnableToGetBalance,
+		ErrUnableToGetBalance,
 	}
 
 	// ErrUnimplemented is returned when an endpoint
@@ -63,11 +63,27 @@ var (
 		Message: "Block not found",
 	}
 
+	// ErrUnableToGetCoins is returned by the indexer
+	// when it is not possible to get the coins
+	// owned by a *types.AccountIdentifier.
+	ErrUnableToGetCoins = &types.Error{
+		Code:    15, //nolint
+		Message: "Unable to get coins",
+	}
+
 	// ErrTransactionNotFound is returned by the indexer
 	// when it is not possible to find a transaction.
 	ErrTransactionNotFound = &types.Error{
 		Code:    16, // nolint
 		Message: "Transaction not found",
+	}
+
+	// ErrUnableToGetBalance is returned by the indexer
+	// when it is not possible to get the balance
+	// of a *types.AccountIdentifier.
+	ErrUnableToGetBalance = &types.Error{
+		Code:    18, //nolint
+		Message: "Unable to get balance",
 	}
 )
 

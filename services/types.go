@@ -33,4 +33,14 @@ type Indexer interface {
 		*types.BlockIdentifier,
 		*types.TransactionIdentifier,
 	) (*types.Transaction, error)
+	GetBalance(
+		context.Context,
+		*types.AccountIdentifier,
+		*types.Currency,
+		*types.PartialBlockIdentifier,
+	) (*types.Amount, *types.BlockIdentifier, error)
+	GetCoins(
+		context.Context,
+		*types.AccountIdentifier,
+	) ([]*types.Coin, *types.BlockIdentifier, error)
 }
