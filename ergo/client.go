@@ -11,6 +11,7 @@ import (
 	"time"
 
 	"github.com/coinbase/rosetta-sdk-go/types"
+	"github.com/coinbase/rosetta-sdk-go/utils"
 	ergotype "github.com/ross-weir/rosetta-ergo/ergo/types"
 	"go.uber.org/zap"
 )
@@ -90,7 +91,7 @@ func (e *Client) NetworkStatus(ctx context.Context) (*types.NetworkStatusRespons
 		return nil, err
 	}
 
-	currentBlock, err := ergoBlockHeaderToRosettaBlock(&currentBlockHeader[0])
+	currentBlock, err := ergoBlockHeaderToRosettaBlock(ctx, &currentBlockHeader[0])
 	if err != nil {
 		return nil, fmt.Errorf("%w: error converting ergo block header to rosetta", err)
 	}
@@ -140,32 +141,54 @@ func (e *Client) GetNodeInfo(ctx context.Context) (*ergotype.NodeInfo, error) {
 	return nodeInfo, nil
 }
 
-// GetBlock fetches a full Ergo block
+// GetRawBlock fetches a full Ergo block and returns all the newly created utxos (coins) created
 func (e *Client) GetRawBlock(
 	ctx context.Context,
 	identifier *types.PartialBlockIdentifier,
-) (*ergotype.FullBlock, error) {
-	if identifier.Hash != nil {
-		block, err := e.getBlockByID(ctx, identifier.Hash)
-		if err != nil {
-			return nil, err
-		}
+) (*ergotype.FullBlock, []*InputCtx, error) {
+	var block *ergotype.FullBlock
+	var err error
 
-		return block, nil
+	if identifier.Hash != nil {
+		block, err = e.getBlockByID(ctx, identifier.Hash)
+		if err != nil {
+			return nil, nil, err
+		}
 	}
 
 	if identifier.Index != nil {
-		block, err := e.getBlockByIndex(ctx, identifier.Index)
+		block, err = e.getBlockByIndex(ctx, identifier.Index)
 		if err != nil {
-			return nil, err
+			return nil, nil, err
 		}
-
-		return block, nil
 	}
 
 	// TODO: as per types.PartialBlockIdentifier if neither is specified get the current block
 
-	return nil, nil
+	// We want to return all the input box ids here so they can be fetched
+	// from coin storage for usage when assembling the rosetta block
+	inputCoins := []*InputCtx{}
+	outputs := []string{}
+	for _, tx := range *block.BlockTransactions.Transactions {
+		// keep track of outputs so we know if they're later used as an input
+		for _, output := range *tx.Outputs {
+			outputs = append(outputs, *output.BoxID)
+		}
+
+		for _, input := range *tx.Inputs {
+			// If an output is used as an input in the same block
+			// there's no need to fetch it from coin storage as it won't exist
+			if !utils.ContainsString(outputs, input.BoxID) {
+				i := InputCtx{
+					TxID:    *tx.ID,
+					InputID: input.BoxID,
+				}
+				inputCoins = append(inputCoins, &i)
+			}
+		}
+	}
+
+	return block, inputCoins, nil
 }
 
 // GetUnconfirmedTxs gets all the unconfirmed transactions currently in mempool

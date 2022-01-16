@@ -1,8 +1,10 @@
 package ergo
 
 import (
+	"context"
 	"errors"
 	"fmt"
+	"strconv"
 
 	"github.com/coinbase/rosetta-sdk-go/types"
 
@@ -15,25 +17,35 @@ const (
 
 // Convert a ergo `FullBlock` to a rosetta `Block`
 func ErgoBlockToRosetta( //revive:disable-line:exported
+	ctx context.Context,
 	b *ergotype.FullBlock,
+	coins map[string]*types.AccountCoin,
 ) (*types.Block, error) {
 	if b == nil {
 		return nil, errors.New("error parsing nil block")
 	}
 
-	blockWithoutTxs, err := ergoBlockHeaderToRosettaBlock(b.Header)
+	block, err := ergoBlockHeaderToRosettaBlock(ctx, b.Header)
 	if err != nil {
-		return nil, errors.New("error parsing block using header")
+		return nil, err
 	}
 
-	// TODO: add txs
+	txs, err := ergoBlockToRosettaTxs(ctx, b, coins)
+	if err != nil {
+		return nil, err
+	}
 
-	return blockWithoutTxs, nil
+	block.Transactions = txs
+
+	return block, nil
 }
 
-func ergoBlockHeaderToRosettaBlock(bh *ergotype.BlockHeader) (*types.Block, error) {
+func ergoBlockHeaderToRosettaBlock(
+	ctx context.Context,
+	bh *ergotype.BlockHeader,
+) (*types.Block, error) {
 	if bh == nil {
-		return nil, errors.New("error parsing nil block")
+		return nil, errors.New("ergoBlockHeaderToRosettaBlock: error parsing nil block")
 	}
 
 	blockIndex := int64(bh.Height)
@@ -56,6 +68,131 @@ func ergoBlockHeaderToRosettaBlock(bh *ergotype.BlockHeader) (*types.Block, erro
 			Index: previousBlockIndex,
 		},
 		Timestamp: bh.Timestamp,
+	}, nil
+}
+
+// ergoBlockToRosettaTxs extracts rosetta transactions from ergo full block
+func ergoBlockToRosettaTxs(
+	ctx context.Context,
+	fb *ergotype.FullBlock,
+	coins map[string]*types.AccountCoin,
+) ([]*types.Transaction, error) {
+	if fb == nil {
+		return nil, errors.New("ergoBlockToRosettaTxs: error parsing nil block")
+	}
+
+	// TODO: might be able to just pass BlockTransactions
+	txs := make([]*types.Transaction, len(*fb.BlockTransactions.Transactions))
+
+	for index, transaction := range *fb.BlockTransactions.Transactions {
+		txOps, err := ergoTransactionToRosettaOps(&transaction)
+		if err != nil {
+			return nil, fmt.Errorf(
+				"%w: error parsing transaction operations, txId: %s",
+				err,
+				*transaction.ID,
+			)
+		}
+
+		// get metadata
+		tx := &types.Transaction{
+			TransactionIdentifier: &types.TransactionIdentifier{
+				Hash: *transaction.ID,
+			},
+			Operations: txOps,
+		}
+
+		txs[index] = tx
+
+		// In some cases, a transaction will spent an output
+		// from the same block.
+		// It won't have been previously fetched from coin storage so populate it now.
+		for _, op := range tx.Operations {
+			if op.CoinChange == nil {
+				continue
+			}
+
+			if op.CoinChange.CoinAction != types.CoinCreated {
+				continue
+			}
+
+			coins[op.CoinChange.CoinIdentifier.Identifier] = &types.AccountCoin{
+				Coin: &types.Coin{
+					CoinIdentifier: op.CoinChange.CoinIdentifier,
+					Amount:         op.Amount,
+				},
+				Account: op.Account,
+			}
+		}
+	}
+
+	return txs, nil
+}
+
+// ergoTransactionToRosettaOps extracts rosetta operations from an ergo transactions inputs/outputs
+func ergoTransactionToRosettaOps(tx *ergotype.ErgoTransaction) ([]*types.Operation, error) {
+	txOps := []*types.Operation{}
+
+	for inputIndex, input := range *tx.Inputs {
+		// get the account coin related to this input (i.e the previous unspent utxo)
+		// this is needed for value, etc
+
+		txOp, err := ergoInputToRosettaTxOp(&input, int64(len(txOps)), int64(inputIndex))
+		if err != nil {
+			return nil, fmt.Errorf("%w: error parsing tx input", err)
+		}
+
+		txOps = append(txOps, txOp)
+	}
+
+	for _, output := range *tx.Outputs {
+		txOp, err := ergoOutputToRosettaTxOp(&output, int64(len(txOps)))
+		if err != nil {
+			return nil, fmt.Errorf("%w: error parsing tx output, boxId: %s", err, *output.BoxID)
+		}
+
+		txOps = append(txOps, txOp)
+	}
+
+	return txOps, nil
+}
+
+func ergoInputToRosettaTxOp(
+	input *ergotype.ErgoTransactionInput,
+	operationIndex int64,
+	inputIndex int64,
+) (*types.Operation, error) {
+
+	return nil, nil
+}
+
+func ergoOutputToRosettaTxOp(
+	output *ergotype.ErgoTransactionOutput,
+	operationIndex int64,
+) (*types.Operation, error) {
+	coinChange := &types.CoinChange{
+		CoinIdentifier: &types.CoinIdentifier{
+			Identifier: *output.BoxID,
+		},
+		CoinAction: types.CoinCreated,
+	}
+
+	// get the account (pk)
+
+	return &types.Operation{
+		OperationIdentifier: &types.OperationIdentifier{
+			Index:        operationIndex,
+			NetworkIndex: types.Int64(int64(*output.Index)),
+		},
+		Type:   OutputOpType,
+		Status: types.String(SuccessStatus),
+		//Account
+		Amount: &types.Amount{
+			Value:    strconv.FormatInt(output.Value, 10),
+			Currency: Currency,
+		},
+		CoinChange: coinChange,
+		// Metadata
 	}, nil
 }
 

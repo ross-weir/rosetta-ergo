@@ -2,12 +2,15 @@ package indexer
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"runtime"
+	"sync"
 	"time"
 
 	"github.com/coinbase/rosetta-sdk-go/asserter"
 	"github.com/coinbase/rosetta-sdk-go/storage/database"
+	storageErrs "github.com/coinbase/rosetta-sdk-go/storage/errors"
 	"github.com/coinbase/rosetta-sdk-go/storage/modules"
 	"github.com/coinbase/rosetta-sdk-go/syncer"
 	"github.com/coinbase/rosetta-sdk-go/types"
@@ -19,6 +22,7 @@ import (
 	ergotype "github.com/ross-weir/rosetta-ergo/ergo/types"
 	"github.com/ross-weir/rosetta-ergo/services"
 	"go.uber.org/zap"
+	"golang.org/x/sync/semaphore"
 )
 
 const (
@@ -36,10 +40,18 @@ const (
 	retryLimit = 5
 
 	// Sleep time between checking node status
-	nodeWaitSleep = 3 * time.Second
+	nodeWaitSleep           = 3 * time.Second
+	missingTransactionDelay = 200 * time.Millisecond
 
 	// zeroValue is 0 as a string
 	zeroValue = "0"
+
+	// semaphoreWeight is the weight of each semaphore request.
+	semaphoreWeight = int64(1)
+)
+
+var (
+	errMissingTransaction = errors.New("missing transaction")
 )
 
 var _ syncer.Handler = (*Indexer)(nil)
@@ -59,6 +71,22 @@ type Indexer struct {
 	workers        []modules.BlockWorker
 
 	logger *zap.SugaredLogger
+
+	waiter *waitTable
+
+	// Store coins created in pre-store before persisted
+	// in add block so we can optimistically populate
+	// blocks before committed.
+	coinCache      map[string]*types.AccountCoin
+	coinCacheMutex *sdkUtils.PriorityMutex
+
+	// When populating blocks using pre-stored blocks,
+	// we should retry if a new block was seen (similar
+	// to trying again if head block changes).
+	seen      int64
+	seenMutex sync.Mutex
+
+	seenSemaphore *semaphore.Weighted
 }
 
 // defaultBadgerOptions returns a set of badger.Options optimized
@@ -107,13 +135,17 @@ func InitIndexer(
 	}
 
 	i := &Indexer{
-		cancel:       cancel,
-		network:      cfg.Network,
-		client:       client,
-		asserter:     asserter,
-		db:           localDB,
-		blockStorage: blockStorage,
-		logger:       logger.Sugar().Named("indexer"),
+		cancel:         cancel,
+		network:        cfg.Network,
+		client:         client,
+		asserter:       asserter,
+		waiter:         newWaitTable(),
+		db:             localDB,
+		blockStorage:   blockStorage,
+		logger:         logger.Sugar().Named("indexer"),
+		coinCache:      map[string]*types.AccountCoin{},
+		coinCacheMutex: new(sdkUtils.PriorityMutex),
+		seenSemaphore:  semaphore.NewWeighted(int64(runtime.NumCPU())),
 	}
 
 	coinStorage := modules.NewCoinStorage(
@@ -202,11 +234,12 @@ func (i *Indexer) Block(
 	blockIdentifier *types.PartialBlockIdentifier,
 ) (*types.Block, error) {
 	var ergoBlock *ergotype.FullBlock
+	var inputCoins []*ergo.InputCtx
 	var err error
 
 	retries := 0
 	for ctx.Err() == nil {
-		ergoBlock, err = i.client.GetRawBlock(ctx, blockIdentifier)
+		ergoBlock, inputCoins, err = i.client.GetRawBlock(ctx, blockIdentifier)
 		if err == nil {
 			break
 		}
@@ -221,7 +254,14 @@ func (i *Indexer) Block(
 		}
 	}
 
-	block, err := ergo.ErgoBlockToRosetta(ergoBlock)
+	// determine which coins must be fetched and get from coin storage
+	// coins are needed during block conversion to populate transaction inputs/rosetta operations
+	coinMap, err := i.findCoins(ctx, ergoBlock, inputCoins)
+	if err != nil {
+		return nil, fmt.Errorf("%w: unable to find inputs", err)
+	}
+
+	block, err := ergo.ErgoBlockToRosetta(ctx, ergoBlock, coinMap)
 	if err != nil {
 		return nil, err
 	}
@@ -246,6 +286,56 @@ func (i *Indexer) BlockAdded(ctx context.Context, block *types.Block) error {
 		)
 	}
 
+	// clean cache intermediate
+	// these coins would be added to storage at this point
+	i.coinCacheMutex.Lock(true)
+	for _, tx := range block.Transactions {
+		for _, op := range tx.Operations {
+			if op.CoinChange == nil {
+				continue
+			}
+
+			if op.CoinChange.CoinAction != types.CoinCreated {
+				continue
+			}
+
+			delete(i.coinCache, op.CoinChange.CoinIdentifier.Identifier)
+		}
+	}
+	i.coinCacheMutex.Unlock()
+
+	// Look for all remaining waiting transactions associated
+	// with the next block that have not yet been closed. We should
+	// abort these waits as they will never be closed by a new transaction.
+	i.waiter.Lock()
+	for txHash, val := range i.waiter.table {
+		if val.earliestBlock == block.BlockIdentifier.Index+1 && !val.channelClosed {
+			i.logger.Debugw(
+				"aborting channel",
+				"hash", block.BlockIdentifier.Hash,
+				"index", block.BlockIdentifier.Index,
+				"channel", txHash,
+			)
+			val.channelClosed = true
+			val.aborted = true
+			close(val.channel)
+		}
+	}
+	i.waiter.Unlock()
+
+	ops := 0
+	for _, transaction := range block.Transactions {
+		ops += len(transaction.Operations)
+	}
+
+	i.logger.Debugw(
+		"block added",
+		"hash", block.BlockIdentifier.Hash,
+		"index", block.BlockIdentifier.Index,
+		"transactions", len(block.Transactions),
+		"ops", ops,
+	)
+
 	return nil
 }
 
@@ -254,12 +344,62 @@ func (i *Indexer) BlockRemoved(
 	ctx context.Context,
 	blockIdentifier *types.BlockIdentifier,
 ) error {
+	i.logger.Debugw(
+		"block removed",
+		"hash", blockIdentifier.Hash,
+		"index", blockIdentifier.Index,
+	)
+	err := i.blockStorage.RemoveBlock(ctx, blockIdentifier)
+	if err != nil {
+		return fmt.Errorf(
+			"%w: unable to remove block from storage %s:%d",
+			err,
+			blockIdentifier.Hash,
+			blockIdentifier.Index,
+		)
+	}
+
 	return nil
 }
 
 // BlockSeen is called by the syncer when a block is encountered.
 // Stores the rosetta `Block` for /block/ API calls.
 func (i *Indexer) BlockSeen(ctx context.Context, block *types.Block) error {
+	if err := i.seenSemaphore.Acquire(ctx, semaphoreWeight); err != nil {
+		return err
+	}
+	defer i.seenSemaphore.Release(semaphoreWeight)
+
+	// load intermediate
+	// utxo cache, eagerly add new output coins to cache
+	i.coinCacheMutex.Lock(false)
+	for _, tx := range block.Transactions {
+		for _, op := range tx.Operations {
+			if op.CoinChange == nil {
+				continue
+			}
+
+			// We only care about newly accessible coins.
+			if op.CoinChange.CoinAction != types.CoinCreated {
+				continue
+			}
+
+			i.coinCache[op.CoinChange.CoinIdentifier.Identifier] = &types.AccountCoin{
+				Account: op.Account,
+				Coin: &types.Coin{
+					CoinIdentifier: op.CoinChange.CoinIdentifier,
+					Amount:         op.Amount,
+				},
+			}
+		}
+	}
+	i.coinCacheMutex.Unlock()
+
+	// Update so that lookers know it exists
+	i.seenMutex.Lock()
+	i.seen++
+	i.seenMutex.Unlock()
+
 	err := i.blockStorage.SeeBlock(ctx, block)
 	if err != nil {
 		return fmt.Errorf(
@@ -270,7 +410,256 @@ func (i *Indexer) BlockSeen(ctx context.Context, block *types.Block) error {
 		)
 	}
 
+	// Close channels of all blocks waiting for this particular transaction to be created.
+	// For example a future block might be waiting for a output in this transaction
+	// to use as an input in its blocks transaction.
+	i.waiter.Lock()
+	for _, transaction := range block.Transactions {
+		txHash := transaction.TransactionIdentifier.Hash
+		val, ok := i.waiter.Get(txHash, false)
+		if !ok {
+			continue
+		}
+
+		if val.channelClosed {
+			i.logger.Debugw(
+				"channel already closed",
+				"hash", block.BlockIdentifier.Hash,
+				"index", block.BlockIdentifier.Index,
+				"channel", txHash,
+			)
+			continue
+		}
+
+		// Closing channel will cause all listeners to continue
+		val.channelClosed = true
+		close(val.channel)
+	}
+	i.waiter.Unlock()
+
+	i.logger.Debugw(
+		"block seen",
+		"hash", block.BlockIdentifier.Hash,
+		"index", block.BlockIdentifier.Index,
+	)
+
 	return nil
+}
+
+func (i *Indexer) checkHeaderMatch(
+	ctx context.Context,
+	block *ergotype.FullBlock,
+) error {
+	headBlock, err := i.blockStorage.GetHeadBlockIdentifier(ctx)
+	if err != nil && !errors.Is(err, storageErrs.ErrHeadBlockNotFound) {
+		return fmt.Errorf("%w: unable to lookup head block", err)
+	}
+
+	// If block we are trying to process is next but it is not connected, we
+	// should return syncer.ErrOrphanHead to manually trigger a reorg.
+	if headBlock != nil &&
+		int64(block.Header.Height) == headBlock.Index+1 &&
+		block.Header.ParentID != headBlock.Hash {
+		return syncer.ErrOrphanHead
+	}
+
+	return nil
+}
+
+func (i *Indexer) findCoins(
+	ctx context.Context,
+	block *ergotype.FullBlock,
+	coins []*ergo.InputCtx,
+) (map[string]*types.AccountCoin, error) {
+	if err := i.checkHeaderMatch(ctx, block); err != nil {
+		return nil, fmt.Errorf("%w: check header match failed", err)
+	}
+
+	coinMap := map[string]*types.AccountCoin{}
+	remainingCoins := []*ergo.InputCtx{}
+	for _, inputCtx := range coins {
+		coin, owner, err := i.findCoin(
+			ctx,
+			block,
+			inputCtx,
+		)
+		if err == nil {
+			coinMap[inputCtx.InputID] = &types.AccountCoin{
+				Account: owner,
+				Coin:    coin,
+			}
+			continue
+		}
+
+		if errors.Is(err, errMissingTransaction) {
+			remainingCoins = append(remainingCoins, inputCtx)
+			continue
+		}
+
+		return nil, fmt.Errorf(
+			"%w: unable to find coin, input id: %s, tx id: %s",
+			err,
+			inputCtx.InputID,
+			inputCtx.TxID,
+		)
+	}
+
+	if len(remainingCoins) == 0 {
+		return coinMap, nil
+	}
+
+	// Wait for remaining transactions
+	shouldAbort := false
+	for _, coin := range remainingCoins {
+		// Wait on Channel
+		txHash := coin.TxID
+		entry, ok := i.waiter.Get(txHash, true)
+		if !ok {
+			return nil, fmt.Errorf("transaction %s not in waiter", txHash)
+		}
+
+		select {
+		case <-entry.channel:
+		case <-ctx.Done():
+			return nil, ctx.Err()
+		}
+
+		// Delete Transaction from WaitTable if last listener
+		i.waiter.Lock()
+		val, ok := i.waiter.Get(txHash, false)
+		if !ok {
+			return nil, fmt.Errorf("transaction %s not in waiter", txHash)
+		}
+
+		// Don't exit right away to make sure
+		// we remove all closed entries from the
+		// waiter.
+		if val.aborted {
+			shouldAbort = true
+		}
+
+		val.listeners--
+		if val.listeners == 0 {
+			i.waiter.Delete(txHash, false)
+		} else {
+			i.waiter.Set(txHash, val, false)
+		}
+		i.waiter.Unlock()
+	}
+
+	// Wait to exit until we have decremented our listeners
+	if shouldAbort {
+		return nil, syncer.ErrOrphanHead
+	}
+
+	// In the case of a reorg, we may still not be able to find
+	// the transactions. So, we need to repeat this same process
+	// recursively until we find the transactions we are looking for.
+	foundCoins, err := i.findCoins(ctx, block, remainingCoins)
+	if err != nil {
+		return nil, fmt.Errorf("%w: unable to get remaining transactions", err)
+	}
+
+	for k, v := range foundCoins {
+		coinMap[k] = v
+	}
+
+	return coinMap, nil
+}
+
+func (i *Indexer) findCoin(
+	ctx context.Context,
+	block *ergotype.FullBlock,
+	inputCtx *ergo.InputCtx,
+) (*types.Coin, *types.AccountIdentifier, error) {
+	for ctx.Err() == nil {
+		startSeen := i.seen
+		databaseTransaction := i.db.ReadTransaction(ctx)
+		defer databaseTransaction.Discard(ctx)
+
+		coinHeadBlock, err := i.blockStorage.GetHeadBlockIdentifierTransactional(
+			ctx,
+			databaseTransaction,
+		)
+		if errors.Is(err, storageErrs.ErrHeadBlockNotFound) {
+			if err := sdkUtils.ContextSleep(ctx, missingTransactionDelay); err != nil {
+				return nil, nil, err
+			}
+
+			continue
+		}
+		if err != nil {
+			return nil, nil, fmt.Errorf(
+				"%w: unable to get transactional head block identifier",
+				err,
+			)
+		}
+
+		// Attempt to find coin
+		coin, owner, err := i.coinStorage.GetCoinTransactional(
+			ctx,
+			databaseTransaction,
+			&types.CoinIdentifier{
+				Identifier: inputCtx.InputID,
+			},
+		)
+		if err == nil {
+			return coin, owner, nil
+		}
+
+		if !errors.Is(err, storageErrs.ErrCoinNotFound) {
+			return nil, nil, fmt.Errorf("%w: unable to lookup coin %s", err, inputCtx.InputID)
+		}
+
+		// Check seen CoinCache
+		i.coinCacheMutex.Lock(false)
+		accCoin, ok := i.coinCache[inputCtx.InputID]
+		i.coinCacheMutex.Unlock()
+		if ok {
+			return accCoin.Coin, accCoin.Account, nil
+		}
+
+		// Locking here prevents us from adding sending any done
+		// signals while we are determining whether or not to add
+		// to the WaitTable.
+		i.waiter.Lock()
+
+		// Check to see if head block has increased since
+		// we created our databaseTransaction.
+		currHeadBlock, err := i.blockStorage.GetHeadBlockIdentifier(ctx)
+		if err != nil {
+			i.waiter.Unlock()
+			return nil, nil, fmt.Errorf("%w: unable to get head block identifier", err)
+		}
+
+		// If the block has changed, we try to look up the transaction
+		// again.
+		if types.Hash(currHeadBlock) != types.Hash(coinHeadBlock) || i.seen != startSeen {
+			i.waiter.Unlock()
+			continue
+		}
+
+		// Put Transaction in WaitTable if doesn't already exist (could be
+		// multiple listeners)
+		transactionHash := inputCtx.TxID
+		val, ok := i.waiter.Get(transactionHash, false)
+		if !ok {
+			val = &waitTableEntry{
+				channel:       make(chan struct{}),
+				earliestBlock: int64(block.Header.Height),
+			}
+		}
+		if val.earliestBlock > int64(block.Header.Height) {
+			val.earliestBlock = int64(block.Header.Height)
+		}
+		val.listeners++
+		i.waiter.Set(transactionHash, val, false)
+		i.waiter.Unlock()
+
+		return nil, nil, errMissingTransaction
+	}
+
+	return nil, nil, ctx.Err()
 }
 
 // NetworkStatus is called by the syncer to get the current
