@@ -73,7 +73,7 @@ func ergoBlockHeaderToRosettaBlock(
 }
 
 // ErgoBlockTxsToRosettaTxs extracts rosetta transactions from ergo full block
-func ErgoBlockTxsToRosettaTxs(
+func ErgoBlockTxsToRosettaTxs( //revive:disable-line:exported
 	ctx context.Context,
 	e *Client,
 	txs *[]ergotype.ErgoTransaction,
@@ -132,7 +132,7 @@ func ErgoBlockTxsToRosettaTxs(
 }
 
 // ErgoTransactionToRosettaOps extracts rosetta operations from an ergo transactions inputs/outputs
-func ErgoTransactionToRosettaOps(
+func ErgoTransactionToRosettaOps( //revive:disable-line:exported
 	ctx context.Context,
 	e *Client,
 	tx *ergotype.ErgoTransaction,
