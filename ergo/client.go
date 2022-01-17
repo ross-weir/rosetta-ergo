@@ -11,7 +11,6 @@ import (
 	"time"
 
 	"github.com/coinbase/rosetta-sdk-go/types"
-	"github.com/coinbase/rosetta-sdk-go/utils"
 	ergotype "github.com/ross-weir/rosetta-ergo/ergo/types"
 	"go.uber.org/zap"
 )
@@ -169,26 +168,7 @@ func (e *Client) GetRawBlock(
 
 	// We want to return all the input box ids here so they can be fetched
 	// from coin storage for usage when assembling the rosetta block
-	inputCoins := []*InputCtx{}
-	outputs := []string{}
-	for _, tx := range *block.BlockTransactions.Transactions {
-		// keep track of outputs so we know if they're later used as an input
-		for _, output := range *tx.Outputs {
-			outputs = append(outputs, *output.BoxID)
-		}
-
-		for _, input := range *tx.Inputs {
-			// If an output is used as an input in the same block
-			// there's no need to fetch it from coin storage as it won't exist
-			if !utils.ContainsString(outputs, input.BoxID) {
-				i := InputCtx{
-					TxID:    *tx.ID,
-					InputID: input.BoxID,
-				}
-				inputCoins = append(inputCoins, &i)
-			}
-		}
-	}
+	inputCoins := GetInputsForTxs(block.BlockTransactions.Transactions)
 
 	return block, inputCoins, nil
 }

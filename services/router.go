@@ -33,11 +33,16 @@ func NewBlockchainRouter(
 		asserter,
 	)
 
-	mempoolAPIService := NewMempoolAPIService(cfg, client)
+	mempoolAPIService := NewMempoolAPIService(cfg, client, i)
 	mempoolAPIController := server.NewMempoolAPIController(
 		mempoolAPIService,
 		asserter,
 	)
 
-	return server.NewRouter(networkAPIController, blockAPIController, accountAPIController, mempoolAPIController)
+	return server.NewRouter(
+		networkAPIController,
+		blockAPIController,
+		accountAPIController,
+		mempoolAPIController,
+	)
 }
