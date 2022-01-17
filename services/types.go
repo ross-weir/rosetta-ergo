@@ -4,6 +4,7 @@ import (
 	"context"
 
 	"github.com/coinbase/rosetta-sdk-go/types"
+	"github.com/ross-weir/rosetta-ergo/ergo"
 )
 
 const (
@@ -43,4 +44,8 @@ type Indexer interface {
 		context.Context,
 		*types.AccountIdentifier,
 	) ([]*types.Coin, *types.BlockIdentifier, error)
+	FindCoinsForMempoolTx(
+		ctx context.Context,
+		inputs []*ergo.InputCtx,
+	) (map[string]*types.AccountCoin, error)
 }

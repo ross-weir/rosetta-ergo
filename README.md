@@ -39,9 +39,9 @@ Here's how they relate to ergo:
 - [x] ~~`Block`~~
   - [x] ~~`/block`~~
   - [x] ~~`/block/transaction`~~
-- [ ] `Mempool`
+- [x] ~~`Mempool`~~
   - [x] ~~`/mempool`~~
-  - [ ] `/mempool/transaction`
+  - [x] ~~`/mempool/transaction`~~
 
 ### Construction
 

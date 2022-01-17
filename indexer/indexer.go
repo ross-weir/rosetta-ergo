@@ -458,6 +458,7 @@ func (i *Indexer) BlockSeen(ctx context.Context, block *types.Block) error {
 	return nil
 }
 
+// Check if the block is orphaned
 func (i *Indexer) checkHeaderMatch(
 	ctx context.Context,
 	block *ergotype.FullBlock,
@@ -674,6 +675,55 @@ func (i *Indexer) findCoin(
 	}
 
 	return nil, nil, ctx.Err()
+}
+
+// FindCoinForMempoolTx finds coins for a tx that is in the mempool
+// Search all existing coins, not currently taking into account the txs being indexed
+// very basic and could use improvements
+func (i *Indexer) FindCoinsForMempoolTx(
+	ctx context.Context,
+	inputs []*ergo.InputCtx,
+) (map[string]*types.AccountCoin, error) {
+	coinMap := map[string]*types.AccountCoin{}
+
+	for _, inputCtx := range inputs {
+		databaseTransaction := i.db.ReadTransaction(ctx)
+		defer databaseTransaction.Discard(ctx)
+
+		// Attempt to find coin
+		coin, owner, err := i.coinStorage.GetCoinTransactional(
+			ctx,
+			databaseTransaction,
+			&types.CoinIdentifier{
+				Identifier: inputCtx.InputID,
+			},
+		)
+		if err == nil {
+			coinMap[inputCtx.InputID] = &types.AccountCoin{
+				Account: owner,
+				Coin:    coin,
+			}
+
+			continue
+		}
+
+		if !errors.Is(err, storageErrs.ErrCoinNotFound) {
+			return nil, fmt.Errorf("%w: unable to lookup coin %s", err, inputCtx.InputID)
+		}
+
+		// Check seen CoinCache
+		i.coinCacheMutex.Lock(false)
+		accCoin, ok := i.coinCache[inputCtx.InputID]
+		i.coinCacheMutex.Unlock()
+		if ok {
+			coinMap[inputCtx.InputID] = &types.AccountCoin{
+				Account: accCoin.Account,
+				Coin:    accCoin.Coin,
+			}
+		}
+	}
+
+	return coinMap, nil
 }
 
 // bootstrapGenesisState loads pre-genesis block utxos into the db

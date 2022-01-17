@@ -31,7 +31,7 @@ func ErgoBlockToRosetta( //revive:disable-line:exported
 		return nil, err
 	}
 
-	txs, err := ergoBlockToRosettaTxs(ctx, e, b, coins)
+	txs, err := ErgoBlockTxsToRosettaTxs(ctx, e, b.BlockTransactions.Transactions, coins)
 	if err != nil {
 		return nil, err
 	}
@@ -72,23 +72,22 @@ func ergoBlockHeaderToRosettaBlock(
 	}, nil
 }
 
-// ergoBlockToRosettaTxs extracts rosetta transactions from ergo full block
-func ergoBlockToRosettaTxs(
+// ErgoBlockTxsToRosettaTxs extracts rosetta transactions from ergo full block
+func ErgoBlockTxsToRosettaTxs( //revive:disable-line:exported
 	ctx context.Context,
 	e *Client,
-	fb *ergotype.FullBlock,
+	txs *[]ergotype.ErgoTransaction,
 	coins map[string]*types.AccountCoin,
 ) ([]*types.Transaction, error) {
-	if fb == nil {
-		return nil, errors.New("ergoBlockToRosettaTxs: error parsing nil block")
+	if txs == nil {
+		return nil, errors.New("ergoBlockToRosettaTxs: error parsing nil txs")
 	}
 
-	// TODO: might be able to just pass BlockTransactions
-	txs := make([]*types.Transaction, len(*fb.BlockTransactions.Transactions))
-	blockTxs := *fb.BlockTransactions.Transactions
+	blockTxs := *txs
+	parsedTxs := make([]*types.Transaction, len(blockTxs))
 
 	for index, transaction := range blockTxs {
-		txOps, err := ergoTransactionToRosettaOps(ctx, e, &blockTxs[index], coins)
+		txOps, err := ErgoTransactionToRosettaOps(ctx, e, &blockTxs[index], coins)
 		if err != nil {
 			return nil, fmt.Errorf(
 				"%w: error parsing transaction operations, txId: %s",
@@ -105,7 +104,7 @@ func ergoBlockToRosettaTxs(
 			Operations: txOps,
 		}
 
-		txs[index] = tx
+		parsedTxs[index] = tx
 
 		// In some cases, a transaction will spent an output
 		// from the same block.
@@ -129,11 +128,11 @@ func ergoBlockToRosettaTxs(
 		}
 	}
 
-	return txs, nil
+	return parsedTxs, nil
 }
 
-// ergoTransactionToRosettaOps extracts rosetta operations from an ergo transactions inputs/outputs
-func ergoTransactionToRosettaOps(
+// ErgoTransactionToRosettaOps extracts rosetta operations from an ergo transactions inputs/outputs
+func ErgoTransactionToRosettaOps( //revive:disable-line:exported
 	ctx context.Context,
 	e *Client,
 	tx *ergotype.ErgoTransaction,
