@@ -85,6 +85,7 @@ func newHTTPClient(timeout time.Duration) *http.Client {
 }
 
 // NetworkStatus gets the `NetworkStatusResponse` for ergo
+// TODO: remove peers, etc and turn it into just a API request, the networkstatusresponse is now handled in the services
 func (e *Client) NetworkStatus(ctx context.Context) (*types.NetworkStatusResponse, error) {
 	// get current block id / timestamp
 	currentBlockHeader, err := e.getLatestBlockHeaders(ctx, 1)

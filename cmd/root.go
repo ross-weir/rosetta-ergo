@@ -37,7 +37,7 @@ func init() {
 // may need to cancel more than 1 context.
 func handleSignals(listeners []context.CancelFunc) {
 	sigs := make(chan os.Signal, 1)
-	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
+	signal.Notify(sigs, os.Interrupt, syscall.SIGTERM)
 	go func() {
 		sig := <-sigs
 		color.Red("received signal", "signal", sig)

@@ -470,7 +470,7 @@ func (i *Indexer) checkHeaderMatch(
 
 	// If block we are trying to process is next but it is not connected, we
 	// should return syncer.ErrOrphanHead to manually trigger a reorg.
-	if headBlock != nil &&
+	if headBlock != nil && block != nil &&
 		int64(block.Header.Height) == headBlock.Index+1 &&
 		block.Header.ParentID != headBlock.Hash {
 		return syncer.ErrOrphanHead

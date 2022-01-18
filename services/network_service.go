@@ -14,16 +14,19 @@ import (
 type NetworkAPIService struct {
 	cfg    *configuration.Configuration
 	client *ergo.Client
+	i      Indexer
 }
 
 // NewNetworkAPIService creates a new instance of a NetworkAPIService.
 func NewNetworkAPIService(
 	config *configuration.Configuration,
 	client *ergo.Client,
+	indexer Indexer,
 ) server.NetworkAPIServicer {
 	return &NetworkAPIService{
 		cfg:    config,
 		client: client,
+		i:      indexer,
 	}
 }
 
@@ -48,12 +51,22 @@ func (s *NetworkAPIService) NetworkStatus(
 		return nil, wrapErr(ErrUnavailableOffline, nil)
 	}
 
-	ns, err := s.client.NetworkStatus(ctx)
+	peers, err := s.client.GetPeers(ctx)
 	if err != nil {
 		return nil, wrapErr(ErrErgoNode, err)
 	}
 
-	return ns, nil
+	cachedBlockResponse, err := s.i.GetBlockLazy(ctx, nil)
+	if err != nil {
+		return nil, wrapErr(ErrNotReady, nil)
+	}
+
+	return &types.NetworkStatusResponse{
+		CurrentBlockIdentifier: cachedBlockResponse.Block.BlockIdentifier,
+		CurrentBlockTimestamp:  cachedBlockResponse.Block.Timestamp,
+		GenesisBlockIdentifier: s.cfg.GenesisBlockIdentifier,
+		Peers:                  peers,
+	}, nil
 }
 
 // NetworkOptions implements the /network/options endpoint.

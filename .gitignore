@@ -12,6 +12,7 @@ coverage.out
 coverage.xml
 
 data
+cli-data
 
 .env*
 !.env.example

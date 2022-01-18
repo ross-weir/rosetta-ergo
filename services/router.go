@@ -15,7 +15,7 @@ func NewBlockchainRouter(
 	asserter *asserter.Asserter,
 	i Indexer,
 ) http.Handler {
-	networkAPIService := NewNetworkAPIService(cfg, client)
+	networkAPIService := NewNetworkAPIService(cfg, client, i)
 	networkAPIController := server.NewNetworkAPIController(
 		networkAPIService,
 		asserter,

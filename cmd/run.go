@@ -165,13 +165,13 @@ func runCmdHandler(cmd *cobra.Command, args []string) error {
 
 	err = g.Wait()
 
-	if err != nil {
-		logger.Errorw("%w: error running rosetta-ergo", err)
-	}
-
 	// Attempt to close the database gracefully after all indexer goroutines have stopped.
 	if i != nil {
 		i.CloseDatabase(ctx)
+	}
+
+	if err != nil {
+		logger.Errorw("%w: error running rosetta-ergo", err)
 	}
 
 	if SignalReceived {
