@@ -1,39 +1,41 @@
-package services
+package server
 
 import (
 	"net/http"
 
 	"github.com/coinbase/rosetta-sdk-go/asserter"
 	"github.com/coinbase/rosetta-sdk-go/server"
-	"github.com/ross-weir/rosetta-ergo/configuration"
-	"github.com/ross-weir/rosetta-ergo/ergo"
+	"github.com/ross-weir/rosetta-ergo/pkg/config"
+	"github.com/ross-weir/rosetta-ergo/pkg/ergo"
+	"github.com/ross-weir/rosetta-ergo/pkg/services"
+	"github.com/ross-weir/rosetta-ergo/pkg/storage"
 )
 
 func NewBlockchainRouter(
-	cfg *configuration.Configuration,
+	cfg *config.Configuration,
 	client *ergo.Client,
 	asserter *asserter.Asserter,
-	i Indexer,
+	storage *storage.Storage,
 ) http.Handler {
-	networkAPIService := NewNetworkAPIService(cfg, client, i)
+	networkAPIService := services.NewNetworkAPIService(cfg, client, storage)
 	networkAPIController := server.NewNetworkAPIController(
 		networkAPIService,
 		asserter,
 	)
 
-	blockAPIService := NewBlockAPIService(cfg, i)
+	blockAPIService := services.NewBlockAPIService(cfg, storage)
 	blockAPIController := server.NewBlockAPIController(
 		blockAPIService,
 		asserter,
 	)
 
-	accountAPIService := NewAccountAPIService(cfg, i)
+	accountAPIService := services.NewAccountAPIService(cfg, storage)
 	accountAPIController := server.NewAccountAPIController(
 		accountAPIService,
 		asserter,
 	)
 
-	mempoolAPIService := NewMempoolAPIService(cfg, client, i)
+	mempoolAPIService := services.NewMempoolAPIService(cfg, client, storage)
 	mempoolAPIController := server.NewMempoolAPIController(
 		mempoolAPIService,
 		asserter,

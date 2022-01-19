@@ -8,13 +8,15 @@ import (
 	"time"
 
 	"github.com/coinbase/rosetta-sdk-go/asserter"
-	"github.com/coinbase/rosetta-sdk-go/server"
+	serverutil "github.com/coinbase/rosetta-sdk-go/server"
 	"github.com/coinbase/rosetta-sdk-go/types"
-	"github.com/ross-weir/rosetta-ergo/configuration"
-	"github.com/ross-weir/rosetta-ergo/ergo"
-	"github.com/ross-weir/rosetta-ergo/indexer"
-	"github.com/ross-weir/rosetta-ergo/services"
-	"github.com/ross-weir/rosetta-ergo/utils"
+	"github.com/ross-weir/rosetta-ergo/pkg/config"
+	"github.com/ross-weir/rosetta-ergo/pkg/ergo"
+	"github.com/ross-weir/rosetta-ergo/pkg/errutil"
+	"github.com/ross-weir/rosetta-ergo/pkg/indexer"
+	"github.com/ross-weir/rosetta-ergo/pkg/server"
+	"github.com/ross-weir/rosetta-ergo/pkg/storage"
+	"github.com/ross-weir/rosetta-ergo/pkg/util"
 	"github.com/spf13/cobra"
 	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
@@ -46,10 +48,10 @@ var (
 func startOnlineDependencies(
 	ctx context.Context,
 	cancel context.CancelFunc,
-	cfg *configuration.Configuration,
+	cfg *config.Configuration,
 	g *errgroup.Group,
 	l *zap.Logger,
-) (*ergo.Client, *indexer.Indexer, error) {
+) (*ergo.Client, *indexer.Indexer, *storage.Storage, error) {
 	client := ergo.NewClient(
 		ergo.LocalNodeURL(cfg.NodePort),
 		cfg.GenesisBlockIdentifier,
@@ -57,22 +59,42 @@ func startOnlineDependencies(
 		l,
 	)
 
+	onlineAsserter, err := asserter.NewClientWithOptions(
+		cfg.Network,
+		cfg.GenesisBlockIdentifier,
+		ergo.OperationTypes,
+		ergo.OperationStatuses,
+		errutil.Errors,
+		nil,
+		new(asserter.Validations),
+	)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+
+	storage, err := storage.NewStorage(ctx, cfg.IndexerPath, l, onlineAsserter)
+	if err != nil {
+		return nil, nil, nil, err
+	}
+
 	i, err := indexer.InitIndexer(
 		ctx,
 		cancel,
 		cfg,
 		client,
 		l,
+		onlineAsserter,
+		storage,
 	)
 	if err != nil {
-		return nil, nil, fmt.Errorf("%w: unable to initialize indexer", err)
+		return nil, nil, nil, fmt.Errorf("%w: unable to initialize indexer", err)
 	}
 
 	g.Go(func() error {
 		return i.Sync(ctx)
 	})
 
-	return client, i, nil
+	return client, i, storage, nil
 }
 
 func runCmdHandler(cmd *cobra.Command, args []string) error {
@@ -100,15 +122,27 @@ func runCmdHandler(cmd *cobra.Command, args []string) error {
 	g, ctx := errgroup.WithContext(ctx)
 
 	g.Go(func() error {
-		return utils.MonitorMemoryUsage(ctx, -1, zapLogger)
+		return util.MonitorMemoryUsage(ctx, -1, zapLogger)
 	})
 
-	cfg, err := configuration.LoadConfiguration()
+	cfg, err := config.LoadConfiguration()
 	if err != nil {
 		logger.Fatalw("unable to load configuration", "error", err)
 	}
 
 	logger.Infow("loaded configuration", "configuration", types.PrintStruct(cfg))
+
+	var client *ergo.Client
+	var i *indexer.Indexer
+	var storage *storage.Storage
+	if cfg.Mode == config.Online {
+		client, i, storage, err = startOnlineDependencies(ctx, cancel, cfg, g, zapLogger)
+		if err != nil {
+			logger.Fatalw("unable to start online dependencies", "error", err)
+		}
+	}
+
+	logger.Info("loaded ergo node client")
 
 	// The asserter automatically rejects incorrectly formatted requests
 	asserter, err := asserter.NewServer(
@@ -124,22 +158,9 @@ func runCmdHandler(cmd *cobra.Command, args []string) error {
 		logger.Fatalw("unable to create new asserter", "error", err)
 	}
 
-	logger.Info("loaded asserter")
-
-	var client *ergo.Client
-	var i *indexer.Indexer
-	if cfg.Mode == configuration.Online {
-		client, i, err = startOnlineDependencies(ctx, cancel, cfg, g, zapLogger)
-		if err != nil {
-			logger.Fatalw("unable to start online dependencies", "error", err)
-		}
-	}
-
-	logger.Info("loaded ergo node client")
-
-	router := services.NewBlockchainRouter(cfg, client, asserter, i)
-	loggedRouter := services.LoggerMiddleware(zapLogger, router)
-	corsRouter := server.CorsMiddleware(loggedRouter)
+	router := server.NewBlockchainRouter(cfg, client, asserter, storage)
+	loggedRouter := util.LoggerMiddleware(zapLogger, router)
+	corsRouter := serverutil.CorsMiddleware(loggedRouter)
 	server := &http.Server{
 		Addr:         fmt.Sprintf(":%d", cfg.RosettaPort),
 		Handler:      corsRouter,
@@ -167,7 +188,7 @@ func runCmdHandler(cmd *cobra.Command, args []string) error {
 
 	// Attempt to close the database gracefully after all indexer goroutines have stopped.
 	if i != nil {
-		i.CloseDatabase(ctx)
+		storage.Shutdown(ctx)
 	}
 
 	if err != nil {

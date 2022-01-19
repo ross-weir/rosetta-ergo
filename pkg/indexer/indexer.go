@@ -9,18 +9,14 @@ import (
 	"time"
 
 	"github.com/coinbase/rosetta-sdk-go/asserter"
-	"github.com/coinbase/rosetta-sdk-go/storage/database"
 	storageErrs "github.com/coinbase/rosetta-sdk-go/storage/errors"
-	"github.com/coinbase/rosetta-sdk-go/storage/modules"
 	"github.com/coinbase/rosetta-sdk-go/syncer"
 	"github.com/coinbase/rosetta-sdk-go/types"
 	sdkUtils "github.com/coinbase/rosetta-sdk-go/utils"
-	"github.com/dgraph-io/badger/v2"
-	"github.com/dgraph-io/badger/v2/options"
-	"github.com/ross-weir/rosetta-ergo/configuration"
-	"github.com/ross-weir/rosetta-ergo/ergo"
-	ergotype "github.com/ross-weir/rosetta-ergo/ergo/types"
-	"github.com/ross-weir/rosetta-ergo/services"
+	"github.com/ross-weir/rosetta-ergo/pkg/config"
+	"github.com/ross-weir/rosetta-ergo/pkg/ergo"
+	ergotype "github.com/ross-weir/rosetta-ergo/pkg/ergo/types"
+	"github.com/ross-weir/rosetta-ergo/pkg/storage"
 	"go.uber.org/zap"
 	"golang.org/x/sync/semaphore"
 )
@@ -43,9 +39,6 @@ const (
 	nodeWaitSleep           = 3 * time.Second
 	missingTransactionDelay = 200 * time.Millisecond
 
-	// zeroValue is 0 as a string
-	zeroValue = "0"
-
 	// semaphoreWeight is the weight of each semaphore request.
 	semaphoreWeight = int64(1)
 )
@@ -60,18 +53,11 @@ var _ syncer.Helper = (*Indexer)(nil)
 type Indexer struct {
 	cancel context.CancelFunc
 
-	network *types.NetworkIdentifier
-
-	client         *ergo.Client
-	cfg            *configuration.Configuration
-	asserter       *asserter.Asserter
-	db             database.Database
-	blockStorage   *modules.BlockStorage
-	balanceStorage *modules.BalanceStorage
-	coinStorage    *modules.CoinStorage
-	workers        []modules.BlockWorker
-
-	logger *zap.SugaredLogger
+	client   *ergo.Client
+	cfg      *config.Configuration
+	asserter *asserter.Asserter
+	storage  *storage.Storage
+	logger   *zap.SugaredLogger
 
 	waiter *waitTable
 
@@ -90,96 +76,29 @@ type Indexer struct {
 	seenSemaphore *semaphore.Weighted
 }
 
-// defaultBadgerOptions returns a set of badger.Options optimized
-// for running a Rosetta implementation.
-func defaultBadgerOptions(
-	dir string,
-) badger.Options {
-	opts := badger.DefaultOptions(dir)
-
-	// By default, we do not compress the table at all. Doing so can
-	// significantly increase memory usage.
-	opts.Compression = options.None
-
-	return opts
-}
-
 func InitIndexer(
 	ctx context.Context,
 	cancel context.CancelFunc,
-	cfg *configuration.Configuration,
+	cfg *config.Configuration,
 	client *ergo.Client,
 	logger *zap.Logger,
+	asserter *asserter.Asserter,
+	storage *storage.Storage,
 ) (*Indexer, error) {
-	localDB, err := database.NewBadgerDatabase(
-		ctx,
-		cfg.IndexerPath,
-		database.WithCustomSettings(defaultBadgerOptions((cfg.IndexerPath))),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("%w: unable to initialize storage", err)
-	}
-
-	blockStorage := modules.NewBlockStorage(localDB, runtime.NumCPU())
-
-	asserter, err := asserter.NewClientWithOptions(
-		cfg.Network,
-		cfg.GenesisBlockIdentifier,
-		ergo.OperationTypes,
-		ergo.OperationStatuses,
-		services.Errors,
-		nil,
-		new(asserter.Validations),
-	)
-	if err != nil {
-		return nil, fmt.Errorf("%w: unable to initialize asserter", err)
-	}
-
 	i := &Indexer{
 		cancel:         cancel,
-		network:        cfg.Network,
 		client:         client,
 		cfg:            cfg,
 		asserter:       asserter,
+		storage:        storage,
 		waiter:         newWaitTable(),
-		db:             localDB,
-		blockStorage:   blockStorage,
 		logger:         logger.Sugar().Named("indexer"),
 		coinCache:      map[string]*types.AccountCoin{},
 		coinCacheMutex: new(sdkUtils.PriorityMutex),
 		seenSemaphore:  semaphore.NewWeighted(int64(runtime.NumCPU())),
 	}
 
-	coinStorage := modules.NewCoinStorage(
-		localDB,
-		&CoinStorageHelper{blockStorage},
-		asserter,
-	)
-	i.coinStorage = coinStorage
-
-	balanceStorage := modules.NewBalanceStorage(localDB)
-	balanceStorage.Initialize(
-		&BalanceStorageHelper{asserter},
-		&BalanceStorageHandler{},
-	)
-	i.balanceStorage = balanceStorage
-
-	i.workers = []modules.BlockWorker{coinStorage, balanceStorage}
-
-	i.logger.Info("indexer initialized")
-
 	return i, nil
-}
-
-// CloseDatabase closes a storage.Database. This should be called
-// before exiting.
-func (i *Indexer) CloseDatabase(ctx context.Context) {
-	err := i.db.Close(ctx)
-	if err != nil {
-		i.logger.Fatalw("unable to close indexer database", "error", err)
-	}
-
-	i.logger.Infow("database closed successfully")
 }
 
 // waitForNode returns once ergo node is ready to serve
@@ -205,10 +124,11 @@ func (i *Indexer) Sync(ctx context.Context) error {
 
 	i.logger.Info("ergo node running, initializing storage")
 
-	i.blockStorage.Initialize(i.workers)
+	i.storage.Initialize()
+	blockStorage := i.storage.Block()
 
 	startIndex := int64(initialStartIndex)
-	head, err := i.blockStorage.GetHeadBlockIdentifier(ctx)
+	head, err := blockStorage.GetHeadBlockIdentifier(ctx)
 	if err == nil {
 		startIndex = head.Index + 1
 	}
@@ -226,10 +146,10 @@ func (i *Indexer) Sync(ctx context.Context) error {
 	i.logger.Infof("start syncing from index %d", startIndex)
 
 	// Load in previous blocks into syncer cache to handle reorgs.
-	pastBlocks := i.blockStorage.CreateBlockCache(ctx, syncer.DefaultPastBlockLimit)
+	pastBlocks := blockStorage.CreateBlockCache(ctx, syncer.DefaultPastBlockLimit)
 
 	syncer := syncer.New(
-		i.network,
+		i.cfg.Network,
 		i,
 		i,
 		i.cancel,
@@ -288,7 +208,8 @@ func (i *Indexer) Block(
 // BlockAdded is called by the syncer when a block is added.
 // Stores the block Hash/Index only. `BlockSeen` adds the actual block to storage.
 func (i *Indexer) BlockAdded(ctx context.Context, block *types.Block) error {
-	err := i.blockStorage.AddBlock(ctx, block)
+	blockStorage := i.storage.Block()
+	err := blockStorage.AddBlock(ctx, block)
 	if err != nil {
 		return fmt.Errorf(
 			"%w: unable to add block to storage %s:%d",
@@ -361,7 +282,7 @@ func (i *Indexer) BlockRemoved(
 		"hash", blockIdentifier.Hash,
 		"index", blockIdentifier.Index,
 	)
-	err := i.blockStorage.RemoveBlock(ctx, blockIdentifier)
+	err := i.storage.Block().RemoveBlock(ctx, blockIdentifier)
 	if err != nil {
 		return fmt.Errorf(
 			"%w: unable to remove block from storage %s:%d",
@@ -412,7 +333,7 @@ func (i *Indexer) BlockSeen(ctx context.Context, block *types.Block) error {
 	i.seen++
 	i.seenMutex.Unlock()
 
-	err := i.blockStorage.SeeBlock(ctx, block)
+	err := i.storage.Block().SeeBlock(ctx, block)
 	if err != nil {
 		return fmt.Errorf(
 			"%w: unable to encounter block to storage %s:%d",
@@ -463,7 +384,7 @@ func (i *Indexer) checkHeaderMatch(
 	ctx context.Context,
 	block *ergotype.FullBlock,
 ) error {
-	headBlock, err := i.blockStorage.GetHeadBlockIdentifier(ctx)
+	headBlock, err := i.storage.Block().GetHeadBlockIdentifier(ctx)
 	if err != nil && !errors.Is(err, storageErrs.ErrHeadBlockNotFound) {
 		return fmt.Errorf("%w: unable to lookup head block", err)
 	}
@@ -586,13 +507,14 @@ func (i *Indexer) findCoin(
 	inputCtx *ergo.InputCtx,
 ) (*types.Coin, *types.AccountIdentifier, error) {
 	isGenesis := i.client.IsGenesis(block)
+	blockStorage := i.storage.Block()
 
 	for ctx.Err() == nil {
 		startSeen := i.seen
-		databaseTransaction := i.db.ReadTransaction(ctx)
+		databaseTransaction := i.storage.Db().ReadTransaction(ctx)
 		defer databaseTransaction.Discard(ctx)
 
-		coinHeadBlock, err := i.blockStorage.GetHeadBlockIdentifierTransactional(
+		coinHeadBlock, err := blockStorage.GetHeadBlockIdentifierTransactional(
 			ctx,
 			databaseTransaction,
 		)
@@ -611,7 +533,7 @@ func (i *Indexer) findCoin(
 		}
 
 		// Attempt to find coin
-		coin, owner, err := i.coinStorage.GetCoinTransactional(
+		coin, owner, err := i.storage.Coin().GetCoinTransactional(
 			ctx,
 			databaseTransaction,
 			&types.CoinIdentifier{
@@ -641,7 +563,7 @@ func (i *Indexer) findCoin(
 
 		// Check to see if head block has increased since
 		// we created our databaseTransaction.
-		currHeadBlock, err := i.blockStorage.GetHeadBlockIdentifier(ctx)
+		currHeadBlock, err := blockStorage.GetHeadBlockIdentifier(ctx)
 		if err != nil {
 			i.waiter.Unlock()
 			return nil, nil, fmt.Errorf("%w: unable to get head block identifier", err)
@@ -677,58 +599,9 @@ func (i *Indexer) findCoin(
 	return nil, nil, ctx.Err()
 }
 
-// FindCoinForMempoolTx finds coins for a tx that is in the mempool
-// Search all existing coins, not currently taking into account the txs being indexed
-// very basic and could use improvements
-func (i *Indexer) FindCoinsForMempoolTx(
-	ctx context.Context,
-	inputs []*ergo.InputCtx,
-) (map[string]*types.AccountCoin, error) {
-	coinMap := map[string]*types.AccountCoin{}
-
-	for _, inputCtx := range inputs {
-		databaseTransaction := i.db.ReadTransaction(ctx)
-		defer databaseTransaction.Discard(ctx)
-
-		// Attempt to find coin
-		coin, owner, err := i.coinStorage.GetCoinTransactional(
-			ctx,
-			databaseTransaction,
-			&types.CoinIdentifier{
-				Identifier: inputCtx.InputID,
-			},
-		)
-		if err == nil {
-			coinMap[inputCtx.InputID] = &types.AccountCoin{
-				Account: owner,
-				Coin:    coin,
-			}
-
-			continue
-		}
-
-		if !errors.Is(err, storageErrs.ErrCoinNotFound) {
-			return nil, fmt.Errorf("%w: unable to lookup coin %s", err, inputCtx.InputID)
-		}
-
-		// Check seen CoinCache
-		i.coinCacheMutex.Lock(false)
-		accCoin, ok := i.coinCache[inputCtx.InputID]
-		i.coinCacheMutex.Unlock()
-		if ok {
-			coinMap[inputCtx.InputID] = &types.AccountCoin{
-				Account: accCoin.Account,
-				Coin:    accCoin.Coin,
-			}
-		}
-	}
-
-	return coinMap, nil
-}
-
 // bootstrapGenesisState loads pre-genesis block utxos into the db
 func (i *Indexer) bootstrapGenesisState(ctx context.Context) error {
-	err := i.balanceStorage.BootstrapBalances(
+	err := i.storage.Balance().BootstrapBalances(
 		ctx,
 		i.cfg.BootstrapBalancePath,
 		i.cfg.GenesisBlockIdentifier,
@@ -753,7 +626,7 @@ func (i *Indexer) bootstrapGenesisState(ctx context.Context) error {
 		}
 	}
 
-	err = i.coinStorage.SetCoinsImported(ctx, importedCoins)
+	err = i.storage.Coin().SetCoinsImported(ctx, importedCoins)
 	if err != nil {
 		return err
 	}
@@ -768,86 +641,4 @@ func (i *Indexer) NetworkStatus(
 	network *types.NetworkIdentifier,
 ) (*types.NetworkStatusResponse, error) {
 	return i.client.NetworkStatus(ctx)
-}
-
-// GetBlockLazy returns a *types.BlockResponse from the indexer's block storage.
-// All transactions in a block must be fetched individually.
-func (i *Indexer) GetBlockLazy(
-	ctx context.Context,
-	blockIdentifier *types.PartialBlockIdentifier,
-) (*types.BlockResponse, error) {
-	return i.blockStorage.GetBlockLazy(ctx, blockIdentifier)
-}
-
-// GetBlockTransaction returns a *types.Transaction if it is in the provided
-// *types.BlockIdentifier.
-func (i *Indexer) GetBlockTransaction(
-	ctx context.Context,
-	blockIdentifier *types.BlockIdentifier,
-	transactionIdentifier *types.TransactionIdentifier,
-) (*types.Transaction, error) {
-	return i.blockStorage.GetBlockTransaction(
-		ctx,
-		blockIdentifier,
-		transactionIdentifier,
-	)
-}
-
-func (i *Indexer) GetHeadBlockIdentifier(ctx context.Context) (*types.BlockIdentifier, error) {
-	return i.blockStorage.GetHeadBlockIdentifier(ctx)
-}
-
-func (i *Indexer) GetBlock(
-	ctx context.Context,
-	id *types.PartialBlockIdentifier,
-) (*types.Block, error) {
-	return i.blockStorage.GetBlock(ctx, id)
-}
-
-// GetCoins returns all unspent coins for a particular *types.AccountIdentifier.
-func (i *Indexer) GetCoins(
-	ctx context.Context,
-	accountIdentifier *types.AccountIdentifier,
-) ([]*types.Coin, *types.BlockIdentifier, error) {
-	return i.coinStorage.GetCoins(ctx, accountIdentifier)
-}
-
-// GetBalance returns the balance of an account
-// at a particular *types.PartialBlockIdentifier.
-func (i *Indexer) GetBalance(
-	ctx context.Context,
-	accountIdentifier *types.AccountIdentifier,
-	currency *types.Currency,
-	blockIdentifier *types.PartialBlockIdentifier,
-) (*types.Amount, *types.BlockIdentifier, error) {
-	dbTx := i.db.ReadTransaction(ctx)
-	defer dbTx.Discard(ctx)
-
-	blockResponse, err := i.blockStorage.GetBlockLazyTransactional(
-		ctx,
-		blockIdentifier,
-		dbTx,
-	)
-	if err != nil {
-		return nil, nil, err
-	}
-
-	amount, err := i.balanceStorage.GetBalanceTransactional(
-		ctx,
-		dbTx,
-		accountIdentifier,
-		currency,
-		blockResponse.Block.BlockIdentifier.Index,
-	)
-	if errors.Is(err, storageErrs.ErrAccountMissing) {
-		return &types.Amount{
-			Value:    zeroValue,
-			Currency: currency,
-		}, blockResponse.Block.BlockIdentifier, nil
-	}
-	if err != nil {
-		return nil, nil, err
-	}
-
-	return amount, blockResponse.Block.BlockIdentifier, nil
 }

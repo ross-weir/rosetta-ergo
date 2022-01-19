@@ -6,27 +6,35 @@ import (
 	"github.com/coinbase/rosetta-sdk-go/server"
 	"github.com/coinbase/rosetta-sdk-go/types"
 
-	"github.com/ross-weir/rosetta-ergo/configuration"
-	"github.com/ross-weir/rosetta-ergo/ergo"
+	"github.com/ross-weir/rosetta-ergo/pkg/config"
+	"github.com/ross-weir/rosetta-ergo/pkg/ergo"
+	"github.com/ross-weir/rosetta-ergo/pkg/errutil"
+	"github.com/ross-weir/rosetta-ergo/pkg/storage"
+)
+
+const (
+	mempoolCoins = false
+
+	historicalBalances = true
 )
 
 // NetworkAPIService implements the server.NetworkAPIServicer interface.
 type NetworkAPIService struct {
-	cfg    *configuration.Configuration
-	client *ergo.Client
-	i      Indexer
+	cfg     *config.Configuration
+	client  *ergo.Client
+	storage *storage.Storage
 }
 
 // NewNetworkAPIService creates a new instance of a NetworkAPIService.
 func NewNetworkAPIService(
-	config *configuration.Configuration,
+	config *config.Configuration,
 	client *ergo.Client,
-	indexer Indexer,
+	storage *storage.Storage,
 ) server.NetworkAPIServicer {
 	return &NetworkAPIService{
-		cfg:    config,
-		client: client,
-		i:      indexer,
+		cfg:     config,
+		client:  client,
+		storage: storage,
 	}
 }
 
@@ -47,18 +55,18 @@ func (s *NetworkAPIService) NetworkStatus(
 	ctx context.Context,
 	request *types.NetworkRequest,
 ) (*types.NetworkStatusResponse, *types.Error) {
-	if s.cfg.Mode != configuration.Online {
-		return nil, wrapErr(ErrUnavailableOffline, nil)
+	if s.cfg.Mode != config.Online {
+		return nil, errutil.WrapErr(errutil.ErrUnavailableOffline, nil)
 	}
 
 	peers, err := s.client.GetPeers(ctx)
 	if err != nil {
-		return nil, wrapErr(ErrErgoNode, err)
+		return nil, errutil.WrapErr(errutil.ErrErgoNode, err)
 	}
 
-	cachedBlockResponse, err := s.i.GetBlockLazy(ctx, nil)
+	cachedBlockResponse, err := s.storage.Block().GetBlockLazy(ctx, nil)
 	if err != nil {
-		return nil, wrapErr(ErrNotReady, nil)
+		return nil, errutil.WrapErr(errutil.ErrNotReady, nil)
 	}
 
 	return &types.NetworkStatusResponse{
@@ -77,7 +85,7 @@ func (s *NetworkAPIService) NetworkOptions(
 	// TODO: this can be cached since it won't change after startup
 	nodeInfo, err := s.client.GetNodeInfo(ctx)
 	if err != nil {
-		return nil, wrapErr(ErrErgoNode, err)
+		return nil, errutil.WrapErr(errutil.ErrErgoNode, err)
 	}
 
 	return &types.NetworkOptionsResponse{
@@ -89,9 +97,9 @@ func (s *NetworkAPIService) NetworkOptions(
 		Allow: &types.Allow{
 			OperationStatuses:       ergo.OperationStatuses,
 			OperationTypes:          ergo.OperationTypes,
-			Errors:                  Errors,
-			HistoricalBalanceLookup: HistoricalBalanceLookup,
-			MempoolCoins:            MempoolCoins,
+			Errors:                  errutil.Errors,
+			HistoricalBalanceLookup: historicalBalances,
+			MempoolCoins:            mempoolCoins,
 		},
 	}, nil
 }

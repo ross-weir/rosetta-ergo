@@ -8,7 +8,7 @@ import (
 
 	"github.com/coinbase/rosetta-sdk-go/types"
 
-	ergotype "github.com/ross-weir/rosetta-ergo/ergo/types"
+	ergotype "github.com/ross-weir/rosetta-ergo/pkg/ergo/types"
 )
 
 const (
