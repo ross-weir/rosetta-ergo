@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package util
+package logger
 
 import (
 	"net/http"
@@ -44,9 +44,9 @@ func (r *StatusRecorder) WriteHeader(code int) {
 	r.ResponseWriter.WriteHeader(code)
 }
 
-// LoggerMiddleware is a simple logger middleware that prints the requests in
+// NewMiddleware creates a simple logger middleware that prints the requests in
 // an ad-hoc fashion to the stdlib's log.
-func LoggerMiddleware(loggerRaw *zap.Logger, inner http.Handler) http.Handler {
+func NewMiddleware(loggerRaw *zap.Logger, inner http.Handler) http.Handler {
 	logger := loggerRaw.Sugar().Named("server")
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		start := time.Now()

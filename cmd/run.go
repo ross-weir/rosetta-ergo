@@ -14,6 +14,7 @@ import (
 	"github.com/ross-weir/rosetta-ergo/pkg/ergo"
 	"github.com/ross-weir/rosetta-ergo/pkg/errutil"
 	"github.com/ross-weir/rosetta-ergo/pkg/indexer"
+	"github.com/ross-weir/rosetta-ergo/pkg/logger"
 	"github.com/ross-weir/rosetta-ergo/pkg/server"
 	"github.com/ross-weir/rosetta-ergo/pkg/storage"
 	"github.com/ross-weir/rosetta-ergo/pkg/util"
@@ -111,9 +112,9 @@ func runCmdHandler(cmd *cobra.Command, args []string) error {
 		}
 	}()
 
-	logger := zapLogger.Sugar().Named("main")
+	l := zapLogger.Sugar().Named("main")
 
-	logger.Debug("rosetta-ergo starting...")
+	l.Debug("rosetta-ergo starting...")
 
 	ctx := context.Background()
 	ctx, cancel := context.WithCancel(ctx)
@@ -127,10 +128,10 @@ func runCmdHandler(cmd *cobra.Command, args []string) error {
 
 	cfg, err := config.LoadConfiguration()
 	if err != nil {
-		logger.Fatalw("unable to load configuration", "error", err)
+		l.Fatalw("unable to load configuration", "error", err)
 	}
 
-	logger.Infow("loaded configuration", "configuration", types.PrintStruct(cfg))
+	l.Infow("loaded configuration", "configuration", types.PrintStruct(cfg))
 
 	var client *ergo.Client
 	var i *indexer.Indexer
@@ -138,11 +139,11 @@ func runCmdHandler(cmd *cobra.Command, args []string) error {
 	if cfg.Mode == config.Online {
 		client, i, storage, err = startOnlineDependencies(ctx, cancel, cfg, g, zapLogger)
 		if err != nil {
-			logger.Fatalw("unable to start online dependencies", "error", err)
+			l.Fatalw("unable to start online dependencies", "error", err)
 		}
 	}
 
-	logger.Info("loaded ergo node client")
+	l.Info("loaded ergo node client")
 
 	// The asserter automatically rejects incorrectly formatted requests
 	asserter, err := asserter.NewServer(
@@ -155,11 +156,11 @@ func runCmdHandler(cmd *cobra.Command, args []string) error {
 	)
 
 	if err != nil {
-		logger.Fatalw("unable to create new asserter", "error", err)
+		l.Fatalw("unable to create new asserter", "error", err)
 	}
 
 	router := server.NewBlockchainRouter(cfg, client, asserter, storage)
-	loggedRouter := util.LoggerMiddleware(zapLogger, router)
+	loggedRouter := logger.NewMiddleware(zapLogger, router)
 	corsRouter := serverutil.CorsMiddleware(loggedRouter)
 	server := &http.Server{
 		Addr:         fmt.Sprintf(":%d", cfg.RosettaPort),
@@ -170,7 +171,7 @@ func runCmdHandler(cmd *cobra.Command, args []string) error {
 	}
 
 	g.Go(func() error {
-		logger.Infow("rosetta server listening", "port", cfg.RosettaPort)
+		l.Infow("rosetta server listening", "port", cfg.RosettaPort)
 
 		return server.ListenAndServe()
 	})
@@ -192,11 +193,11 @@ func runCmdHandler(cmd *cobra.Command, args []string) error {
 	}
 
 	if err != nil {
-		logger.Errorw("%w: error running rosetta-ergo", err)
+		l.Errorw("%w: error running rosetta-ergo", err)
 	}
 
 	if SignalReceived {
-		logger.Info("rosetta-ergo halted")
+		l.Info("rosetta-ergo halted")
 
 		return nil
 	}
