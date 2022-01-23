@@ -55,8 +55,6 @@ func startOnlineDependencies(
 ) (*ergo.Client, *indexer.Indexer, *storage.Storage, error) {
 	client := ergo.NewClient(
 		ergo.LocalNodeURL(cfg.NodePort),
-		cfg.GenesisBlockIdentifier,
-		cfg.Currency,
 		l,
 	)
 
@@ -79,7 +77,6 @@ func startOnlineDependencies(
 	}
 
 	i, err := indexer.InitIndexer(
-		ctx,
 		cancel,
 		cfg,
 		client,

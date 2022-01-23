@@ -10,12 +10,22 @@ import (
 	ergotype "github.com/ross-weir/rosetta-ergo/pkg/ergo/types"
 )
 
-type Converter struct {
-	e          *ergo.Client
-	inputCoins map[string]*types.AccountCoin
+// BlockConverter converts a full ergo block into a full rosetta block
+type BlockConverter struct {
+	e *ergo.Client
+
+	// blockTxInputs is a running cache of outputs that are
+	// produced from txs in this block
+	// We keep track of these in case they're used as
+	// inputs in txs later in the block
+	blockTxInputs map[string]*types.AccountCoin
+
+	// Boxes to be used as inputs for operations
+	// in this converted block
+	preFetchedInputs map[string]*types.AccountCoin
 }
 
-func (c *Converter) BlockToRosettaBlock(
+func (c *BlockConverter) BlockToRosettaBlock(
 	ctx context.Context,
 	block *ergotype.FullBlock,
 ) (*types.Block, error) {
@@ -47,7 +57,7 @@ func (c *Converter) BlockToRosettaBlock(
 	return b, nil
 }
 
-func (c *Converter) HeaderToRosettaBlock(
+func (c *BlockConverter) HeaderToRosettaBlock(
 	ctx context.Context,
 	bh *ergotype.BlockHeader,
 ) (*types.Block, error) {
@@ -74,7 +84,7 @@ func (c *Converter) HeaderToRosettaBlock(
 	}, nil
 }
 
-func (c *Converter) TxToRosettaTx(
+func (c *BlockConverter) TxToRosettaTx(
 	ctx context.Context,
 	ergoTx *ergotype.ErgoTransaction,
 ) (*types.Transaction, error) {
@@ -82,7 +92,7 @@ func (c *Converter) TxToRosettaTx(
 	inputs := *ergoTx.Inputs
 
 	for inputIdx, input := range inputs {
-		acctCoin, ok := c.inputCoins[input.BoxID]
+		acctCoin, ok := c.blockTxInputs[input.BoxID]
 		if !ok {
 			return nil, fmt.Errorf("unable to find inputt %s, for tx: %s", input.BoxID, *ergoTx.ID)
 		}
@@ -119,7 +129,7 @@ func (c *Converter) TxToRosettaTx(
 	}, nil
 }
 
-func (c *Converter) InputToRosettaOp(
+func (c *BlockConverter) InputToRosettaOp(
 	i *ergotype.ErgoTransactionInput,
 	operationIndex int64,
 	inputIndex int64,
@@ -152,7 +162,7 @@ func (c *Converter) InputToRosettaOp(
 	}, nil
 }
 
-func (c *Converter) OutputToRosettaOp(
+func (c *BlockConverter) OutputToRosettaOp(
 	ctx context.Context,
 	o *ergotype.ErgoTransactionOutput,
 	operationIndex int64,
@@ -189,21 +199,9 @@ func (c *Converter) OutputToRosettaOp(
 	}, nil
 }
 
-func (c *Converter) PeerToRosettaPeer(p *ergotype.Peer) (*types.Peer, error) {
-	metadata, err := types.MarshalMap(p)
-	if err != nil {
-		return nil, fmt.Errorf("%w: unable to marshal peer metadata", err)
-	}
-
-	return &types.Peer{
-		PeerID:   p.Address,
-		Metadata: metadata,
-	}, nil
-}
-
 // Preserve input coins used in transactions so they can
 // be used for later transactions in the block if required
-func (c *Converter) storeTxCoins(tx *types.Transaction) {
+func (c *BlockConverter) storeTxCoins(tx *types.Transaction) {
 	for _, op := range tx.Operations {
 		if op.CoinChange == nil {
 			continue
@@ -213,7 +211,7 @@ func (c *Converter) storeTxCoins(tx *types.Transaction) {
 			continue
 		}
 
-		c.inputCoins[op.CoinChange.CoinIdentifier.Identifier] = &types.AccountCoin{
+		c.blockTxInputs[op.CoinChange.CoinIdentifier.Identifier] = &types.AccountCoin{
 			Coin: &types.Coin{
 				CoinIdentifier: op.CoinChange.CoinIdentifier,
 				Amount:         op.Amount,
@@ -221,4 +219,16 @@ func (c *Converter) storeTxCoins(tx *types.Transaction) {
 			Account: op.Account,
 		}
 	}
+}
+
+func PeerToRosettaPeer(p *ergotype.Peer) (*types.Peer, error) {
+	metadata, err := types.MarshalMap(p)
+	if err != nil {
+		return nil, fmt.Errorf("%w: unable to marshal peer metadata", err)
+	}
+
+	return &types.Peer{
+		PeerID:   p.Address,
+		Metadata: metadata,
+	}, nil
 }

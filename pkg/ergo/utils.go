@@ -5,6 +5,14 @@ import (
 	ergotype "github.com/ross-weir/rosetta-ergo/pkg/ergo/types"
 )
 
+// InputCtx is used to supply details about a ergo box input
+// This is used for the indexer to wait for the transaction of a input
+// to be committed to storage
+type InputCtx struct {
+	TxID    string
+	InputID string
+}
+
 // GetInputsForTxs gathers all input boxes required for a set of txs
 // Useful for the indexer to be able to wait for txs containing a desired input
 func GetInputsForTxs(txs *[]ergotype.ErgoTransaction) []*InputCtx {

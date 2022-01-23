@@ -77,7 +77,6 @@ type Indexer struct {
 }
 
 func InitIndexer(
-	ctx context.Context,
 	cancel context.CancelFunc,
 	cfg *config.Configuration,
 	client *ergo.Client,
@@ -105,7 +104,8 @@ func InitIndexer(
 // block queries.
 func (i *Indexer) waitForNode(ctx context.Context) error {
 	for {
-		_, err := i.client.NetworkStatus(ctx)
+		// TODO: is there a better way to check if node is ready to serve?
+		_, err := i.client.GetPeers(ctx)
 		if err == nil {
 			return nil
 		}
@@ -166,13 +166,21 @@ func (i *Indexer) Block(
 	blockIdentifier *types.PartialBlockIdentifier,
 ) (*types.Block, error) {
 	var ergoBlock *ergotype.FullBlock
-	var inputCoins []*ergo.InputCtx
+	var requiredInputs []*ergo.InputCtx
 	var err error
 
 	retries := 0
 	for ctx.Err() == nil {
-		ergoBlock, inputCoins, err = i.client.GetRawBlock(ctx, blockIdentifier)
+		// replace with fetcher `Block()`?
+		// We would then need to get requiredInputs from `rosetta.Transaction` inputs instead
+		// I don't think we can replace with fetcher because fetcher will use the
+		// rosetta API to request a block, that block wouldn't exist yet if
+		// we're processing it here in the indexer?
+		// ergoBlock, requiredInputs, err = i.client.GetRawBlock(ctx, blockIdentifier)
+		ergoBlock, err = i.getBlockByIdentifier(ctx, blockIdentifier)
 		if err == nil {
+			requiredInputs = ergo.GetInputsForTxs(ergoBlock.BlockTransactions.Transactions)
+
 			break
 		}
 
@@ -188,7 +196,7 @@ func (i *Indexer) Block(
 
 	// determine which coins must be fetched and get from coin storage
 	// coins are needed during block conversion to populate transaction inputs/rosetta operations
-	coinMap, err := i.findCoins(ctx, ergoBlock, inputCoins)
+	coinMap, err := i.findCoins(ctx, ergoBlock, requiredInputs)
 	if err != nil {
 		return nil, fmt.Errorf("%w: unable to find inputs", err)
 	}
@@ -203,6 +211,27 @@ func (i *Indexer) Block(
 	}
 
 	return block, nil
+}
+
+func (i *Indexer) getBlockByIdentifier(ctx context.Context, blockId *types.PartialBlockIdentifier) (*ergotype.FullBlock, error) {
+	var block *ergotype.FullBlock
+	var err error
+
+	if blockId.Hash != nil {
+		block, err = i.client.GetBlockByID(ctx, blockId.Hash)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	if blockId.Index != nil {
+		block, err = i.client.GetBlockByIndex(ctx, blockId.Index)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	return block, err
 }
 
 // BlockAdded is called by the syncer when a block is added.
@@ -506,7 +535,7 @@ func (i *Indexer) findCoin(
 	block *ergotype.FullBlock,
 	inputCtx *ergo.InputCtx,
 ) (*types.Coin, *types.AccountIdentifier, error) {
-	isGenesis := i.client.IsGenesis(block)
+	isGenesis := i.isGenesis(block)
 	blockStorage := i.storage.Block()
 
 	for ctx.Err() == nil {
@@ -640,5 +669,25 @@ func (i *Indexer) NetworkStatus(
 	ctx context.Context,
 	network *types.NetworkIdentifier,
 ) (*types.NetworkStatusResponse, error) {
-	return i.client.NetworkStatus(ctx)
+	peers, err := i.client.GetPeers(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	cachedBlockResponse, err := i.storage.Block().GetBlockLazy(ctx, nil)
+	if err != nil {
+		return nil, err
+	}
+
+	return &types.NetworkStatusResponse{
+		CurrentBlockIdentifier: cachedBlockResponse.Block.BlockIdentifier,
+		CurrentBlockTimestamp:  cachedBlockResponse.Block.Timestamp,
+		GenesisBlockIdentifier: i.cfg.GenesisBlockIdentifier,
+		Peers:                  peers,
+	}, nil
+}
+
+// isGenesis checks if the provided block is the genesis block
+func (i *Indexer) isGenesis(b *ergotype.FullBlock) bool {
+	return i.cfg.GenesisBlockIdentifier.Hash == b.Header.ID
 }

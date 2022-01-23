@@ -108,7 +108,9 @@ func (s *MempoolAPIService) MempoolTransaction(
 	}, nil
 }
 
-func (s *MempoolAPIService) findCoinsForMempoolTx(ctx context.Context, inputs []*ergo.InputCtx,
+func (s *MempoolAPIService) findCoinsForMempoolTx(
+	ctx context.Context,
+	inputs []*ergo.InputCtx,
 ) (map[string]*types.AccountCoin, error) {
 	coinMap := map[string]*types.AccountCoin{}
 
