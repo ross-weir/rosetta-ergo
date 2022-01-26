@@ -691,14 +691,19 @@ func (i *Indexer) NetworkStatus(
 		peers[i] = peer
 	}
 
-	cachedBlockResponse, err := i.storage.Block().GetBlockLazy(ctx, nil)
+	currentHeaders, err := i.client.GetLatestBlockHeaders(ctx, 1)
 	if err != nil {
 		return nil, err
 	}
+	if len(currentHeaders) == 0 {
+		return nil, errors.New("failed to get latest block header from node")
+	}
+
+	block := rosetta.HeaderToRosettaBlock(&currentHeaders[0])
 
 	return &types.NetworkStatusResponse{
-		CurrentBlockIdentifier: cachedBlockResponse.Block.BlockIdentifier,
-		CurrentBlockTimestamp:  cachedBlockResponse.Block.Timestamp,
+		CurrentBlockIdentifier: block.BlockIdentifier,
+		CurrentBlockTimestamp:  block.Timestamp,
 		GenesisBlockIdentifier: i.cfg.GenesisBlockIdentifier,
 		Peers:                  peers,
 	}, nil

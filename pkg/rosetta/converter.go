@@ -40,11 +40,7 @@ func (c *BlockConverter) BlockToRosettaBlock(
 	ctx context.Context,
 	block *ergotype.FullBlock,
 ) (*types.Block, error) {
-	b, err := c.HeaderToRosettaBlock(ctx, block.Header)
-	if err != nil {
-		return nil, err
-	}
-
+	b := HeaderToRosettaBlock(block.Header)
 	ergoTxs := *block.BlockTransactions.Transactions
 	parsedTxs := make([]*types.Transaction, len(ergoTxs))
 
@@ -65,34 +61,9 @@ func (c *BlockConverter) BlockToRosettaBlock(
 		c.storeTxCoins(parsedTx)
 	}
 
+	b.Transactions = parsedTxs
+
 	return b, nil
-}
-
-func (c *BlockConverter) HeaderToRosettaBlock(
-	ctx context.Context,
-	bh *ergotype.BlockHeader,
-) (*types.Block, error) {
-	blockIndex := int64(bh.Height)
-	previousBlockIndex := blockIndex - 1
-	previousBlockHash := bh.ParentID
-
-	// the genesis blocks parent is itself according to the rosetta spec
-	if blockIndex == genesisBlockIndex {
-		previousBlockIndex = genesisBlockIndex
-		previousBlockHash = bh.ID
-	}
-
-	return &types.Block{
-		BlockIdentifier: &types.BlockIdentifier{
-			Hash:  bh.ID,
-			Index: blockIndex,
-		},
-		ParentBlockIdentifier: &types.BlockIdentifier{
-			Hash:  previousBlockHash,
-			Index: previousBlockIndex,
-		},
-		Timestamp: bh.Timestamp,
-	}, nil
 }
 
 func (c *BlockConverter) TxToRosettaTx(
@@ -256,4 +227,28 @@ func PeerToRosettaPeer(p *ergotype.Peer) (*types.Peer, error) {
 		PeerID:   p.Address,
 		Metadata: metadata,
 	}, nil
+}
+
+func HeaderToRosettaBlock(bh *ergotype.BlockHeader) *types.Block {
+	blockIndex := int64(bh.Height)
+	previousBlockIndex := blockIndex - 1
+	previousBlockHash := bh.ParentID
+
+	// the genesis blocks parent is itself according to the rosetta spec
+	if blockIndex == genesisBlockIndex {
+		previousBlockIndex = genesisBlockIndex
+		previousBlockHash = bh.ID
+	}
+
+	return &types.Block{
+		BlockIdentifier: &types.BlockIdentifier{
+			Hash:  bh.ID,
+			Index: blockIndex,
+		},
+		ParentBlockIdentifier: &types.BlockIdentifier{
+			Hash:  previousBlockHash,
+			Index: previousBlockIndex,
+		},
+		Timestamp: bh.Timestamp,
+	}
 }
