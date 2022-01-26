@@ -1,4 +1,4 @@
-package configuration
+package config
 
 import (
 	"fmt"
@@ -7,7 +7,7 @@ import (
 	"strconv"
 
 	"github.com/coinbase/rosetta-sdk-go/types"
-	"github.com/ross-weir/rosetta-ergo/ergo"
+	"github.com/ross-weir/rosetta-ergo/pkg/ergo"
 )
 
 // Version is populated at build time using ldflags

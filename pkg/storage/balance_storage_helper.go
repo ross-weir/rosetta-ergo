@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package indexer
+package storage
 
 import (
 	"context"
@@ -46,7 +46,7 @@ func (h *BalanceStorageHelper) AccountBalance(
 	block *types.BlockIdentifier,
 ) (*types.Amount, error) {
 	return &types.Amount{
-		Value:    zeroValue,
+		Value:    "0",
 		Currency: currency,
 	}, nil
 }

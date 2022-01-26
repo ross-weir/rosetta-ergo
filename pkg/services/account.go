@@ -16,26 +16,30 @@ package services
 
 import (
 	"context"
+	"errors"
 
 	"github.com/coinbase/rosetta-sdk-go/server"
+	storageErrs "github.com/coinbase/rosetta-sdk-go/storage/errors"
 	"github.com/coinbase/rosetta-sdk-go/types"
-	"github.com/ross-weir/rosetta-ergo/configuration"
+	"github.com/ross-weir/rosetta-ergo/pkg/config"
+	"github.com/ross-weir/rosetta-ergo/pkg/errutil"
+	"github.com/ross-weir/rosetta-ergo/pkg/storage"
 )
 
 // AccountAPIService implements the server.AccountAPIServicer interface.
 type AccountAPIService struct {
-	cfg *configuration.Configuration
-	i   Indexer
+	cfg     *config.Configuration
+	storage *storage.Storage
 }
 
 // NewAccountAPIService returns a new *AccountAPIService.
 func NewAccountAPIService(
-	cfg *configuration.Configuration,
-	i Indexer,
+	cfg *config.Configuration,
+	storage *storage.Storage,
 ) server.AccountAPIServicer {
 	return &AccountAPIService{
-		cfg: cfg,
-		i:   i,
+		cfg:     cfg,
+		storage: storage,
 	}
 }
 
@@ -44,22 +48,22 @@ func (s *AccountAPIService) AccountBalance(
 	ctx context.Context,
 	request *types.AccountBalanceRequest,
 ) (*types.AccountBalanceResponse, *types.Error) {
-	if s.cfg.Mode != configuration.Online {
-		return nil, wrapErr(ErrUnavailableOffline, nil)
+	if s.cfg.Mode != config.Online {
+		return nil, errutil.WrapErr(errutil.ErrUnavailableOffline, nil)
 	}
 
 	// TODO: filter balances by request currencies
 
 	// If we are fetching a historical balance,
 	// use balance storage and don't return coins.
-	amount, block, err := s.i.GetBalance(
+	amount, block, err := s.getBalance(
 		ctx,
 		request.AccountIdentifier,
 		s.cfg.Currency,
 		request.BlockIdentifier,
 	)
 	if err != nil {
-		return nil, wrapErr(ErrUnableToGetBalance, err)
+		return nil, errutil.WrapErr(errutil.ErrUnableToGetBalance, err)
 	}
 
 	return &types.AccountBalanceResponse{
@@ -75,8 +79,8 @@ func (s *AccountAPIService) AccountCoins(
 	ctx context.Context,
 	request *types.AccountCoinsRequest,
 ) (*types.AccountCoinsResponse, *types.Error) {
-	if s.cfg.Mode != configuration.Online {
-		return nil, wrapErr(ErrUnavailableOffline, nil)
+	if s.cfg.Mode != config.Online {
+		return nil, errutil.WrapErr(errutil.ErrUnavailableOffline, nil)
 	}
 
 	// TODO: filter coins by request currencies
@@ -85,9 +89,9 @@ func (s *AccountAPIService) AccountCoins(
 	// https://github.com/coinbase/rosetta-bitcoin/issues/36#issuecomment-724992022
 	// Once mempoolcoins are supported also change the bool service/types.go:MempoolCoins to true
 
-	coins, block, err := s.i.GetCoins(ctx, request.AccountIdentifier)
+	coins, block, err := s.storage.Coin().GetCoins(ctx, request.AccountIdentifier)
 	if err != nil {
-		return nil, wrapErr(ErrUnableToGetCoins, err)
+		return nil, errutil.WrapErr(errutil.ErrUnableToGetCoins, err)
 	}
 
 	result := &types.AccountCoinsResponse{
@@ -96,4 +100,42 @@ func (s *AccountAPIService) AccountCoins(
 	}
 
 	return result, nil
+}
+
+func (s *AccountAPIService) getBalance(
+	ctx context.Context,
+	accountIdentifier *types.AccountIdentifier,
+	currency *types.Currency,
+	blockIdentifier *types.PartialBlockIdentifier,
+) (*types.Amount, *types.BlockIdentifier, error) {
+	dbTx := s.storage.DB().ReadTransaction(ctx)
+	defer dbTx.Discard(ctx)
+
+	blockResponse, err := s.storage.Block().GetBlockLazyTransactional(
+		ctx,
+		blockIdentifier,
+		dbTx,
+	)
+	if err != nil {
+		return nil, nil, err
+	}
+
+	amount, err := s.storage.Balance().GetBalanceTransactional(
+		ctx,
+		dbTx,
+		accountIdentifier,
+		currency,
+		blockResponse.Block.BlockIdentifier.Index,
+	)
+	if errors.Is(err, storageErrs.ErrAccountMissing) {
+		return &types.Amount{
+			Value:    "0",
+			Currency: currency,
+		}, blockResponse.Block.BlockIdentifier, nil
+	}
+	if err != nil {
+		return nil, nil, err
+	}
+
+	return amount, blockResponse.Block.BlockIdentifier, nil
 }

@@ -2,11 +2,8 @@
 
 APP=github.com/ross-weir/rosetta-ergo
 APP_VER=$(shell cat ./VERSION)
-LDFLAGS=-ldflags "-X '${APP}/configuration.Version=${APP_VER}'"
-TEST_SCRIPT=go test ${GO_PACKAGES}
-
-GO_PACKAGES=./cmd/... ./configuration/... ./ergo/... ./services/... ./indexer/...
-GO_FOLDERS=$(shell echo ${GO_PACKAGES} | sed -e "s/\.\///g" | sed -e "s/\/\.\.\.//g")
+LDFLAGS=-ldflags "-X '${APP}/pkg/config.Version=${APP_VER}'"
+TEST_SCRIPT=go test pkg
 
 GOLINES_INSTALL=go install github.com/segmentio/golines@latest
 GOLINES_CMD=golines
@@ -23,6 +20,9 @@ run:
 test:
 	${TEST_SCRIPT}
 
+lint:
+	golangci-lint run
+
 shorten-lines:
 	${GOLINES_INSTALL}
-	${GOLINES_CMD} -w --shorten-comments ${GO_FOLDERS}
+	${GOLINES_CMD} -w --shorten-comments pkg cmd

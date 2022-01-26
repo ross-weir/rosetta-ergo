@@ -10,8 +10,7 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/coinbase/rosetta-sdk-go/types"
-	ergotype "github.com/ross-weir/rosetta-ergo/ergo/types"
+	ergotype "github.com/ross-weir/rosetta-ergo/pkg/ergo/types"
 	"go.uber.org/zap"
 )
 
@@ -41,9 +40,6 @@ const (
 type Client struct {
 	baseURL string
 
-	genesisBlockIdentifier *types.BlockIdentifier
-	currency               *types.Currency
-
 	httpClient *http.Client
 	logger     *zap.SugaredLogger
 }
@@ -56,16 +52,12 @@ func LocalNodeURL(nodePort int) string {
 // Create a new ergo node client
 func NewClient(
 	baseURL string,
-	genesisBlockIdentifier *types.BlockIdentifier,
-	currency *types.Currency,
 	logger *zap.Logger,
 ) *Client {
 	return &Client{
-		baseURL:                baseURL,
-		genesisBlockIdentifier: genesisBlockIdentifier,
-		currency:               currency,
-		httpClient:             newHTTPClient(defaultTimeout),
-		logger:                 logger.Sugar().Named("ergoclient"),
+		baseURL:    baseURL,
+		httpClient: newHTTPClient(defaultTimeout),
+		logger:     logger.Sugar().Named("ergoclient"),
 	}
 }
 
@@ -84,53 +76,6 @@ func newHTTPClient(timeout time.Duration) *http.Client {
 	return httpClient
 }
 
-// NetworkStatus gets the `NetworkStatusResponse` for ergo
-// TODO: remove peers, etc and turn it into just a API request, the networkstatusresponse is now handled in the services
-func (e *Client) NetworkStatus(ctx context.Context) (*types.NetworkStatusResponse, error) {
-	// get current block id / timestamp
-	currentBlockHeader, err := e.getLatestBlockHeaders(ctx, 1)
-	if err != nil {
-		return nil, err
-	}
-
-	currentBlock, err := ergoBlockHeaderToRosettaBlock(ctx, &currentBlockHeader[0])
-	if err != nil {
-		return nil, fmt.Errorf("%w: error converting ergo block header to rosetta", err)
-	}
-
-	peers, err := e.GetPeers(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	return &types.NetworkStatusResponse{
-		CurrentBlockIdentifier: currentBlock.BlockIdentifier,
-		CurrentBlockTimestamp:  currentBlock.Timestamp,
-		GenesisBlockIdentifier: e.genesisBlockIdentifier,
-		Peers:                  peers,
-	}, nil
-}
-
-// GetPeers gets a list of connected `Peer`s for ergo
-func (e *Client) GetPeers(ctx context.Context) ([]*types.Peer, error) {
-	connectedPeers, err := e.getConnectedPeers(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	peers := make([]*types.Peer, len(connectedPeers))
-	for i := range connectedPeers {
-		peer, err := ergoPeerToRosettaPeer(&connectedPeers[i])
-		if err != nil {
-			return nil, fmt.Errorf("%w: unable to convert ergo peer to rosetta peer", err)
-		}
-
-		peers[i] = peer
-	}
-
-	return peers, nil
-}
-
 // GetNodeInfo gets information about the connected Ergo node
 func (e *Client) GetNodeInfo(ctx context.Context) (*ergotype.NodeInfo, error) {
 	nodeInfo := &ergotype.NodeInfo{}
@@ -143,37 +88,6 @@ func (e *Client) GetNodeInfo(ctx context.Context) (*ergotype.NodeInfo, error) {
 	return nodeInfo, nil
 }
 
-// GetRawBlock fetches a full Ergo block and returns all the newly created utxos (coins) created
-func (e *Client) GetRawBlock(
-	ctx context.Context,
-	identifier *types.PartialBlockIdentifier,
-) (*ergotype.FullBlock, []*InputCtx, error) {
-	var block *ergotype.FullBlock
-	var err error
-
-	if identifier.Hash != nil {
-		block, err = e.getBlockByID(ctx, identifier.Hash)
-		if err != nil {
-			return nil, nil, err
-		}
-	}
-
-	if identifier.Index != nil {
-		block, err = e.getBlockByIndex(ctx, identifier.Index)
-		if err != nil {
-			return nil, nil, err
-		}
-	}
-
-	// TODO: as per types.PartialBlockIdentifier if neither is specified get the current block
-
-	// We want to return all the input box ids here so they can be fetched
-	// from coin storage for usage when assembling the rosetta block
-	inputCoins := GetInputsForTxs(block.BlockTransactions.Transactions)
-
-	return block, inputCoins, nil
-}
-
 // GetUnconfirmedTxs gets all the unconfirmed transactions currently in mempool
 func (e *Client) GetUnconfirmedTxs(ctx context.Context) ([]ergotype.ErgoTransaction, error) {
 	txs := []ergotype.ErgoTransaction{}
@@ -184,11 +98,6 @@ func (e *Client) GetUnconfirmedTxs(ctx context.Context) ([]ergotype.ErgoTransact
 	}
 
 	return txs, nil
-}
-
-// IsGenesis checks if the provided block is the genesis block
-func (e *Client) IsGenesis(b *ergotype.FullBlock) bool {
-	return e.genesisBlockIdentifier.Hash == b.Header.ID
 }
 
 func (e *Client) TreeToAddress(ctx context.Context, et string) (*string, error) {
@@ -208,7 +117,7 @@ func (e *Client) TreeToAddress(ctx context.Context, et string) (*string, error) 
 	return &addr.Address, nil
 }
 
-func (e *Client) getConnectedPeers(ctx context.Context) ([]ergotype.Peer, error) {
+func (e *Client) GetConnectedPeers(ctx context.Context) ([]ergotype.Peer, error) {
 	peers := []ergotype.Peer{}
 
 	err := e.makeRequest(ctx, nodeEndpointConnectedPeers, http.MethodGet, nil, &peers)
@@ -219,7 +128,7 @@ func (e *Client) getConnectedPeers(ctx context.Context) ([]ergotype.Peer, error)
 	return peers, nil
 }
 
-func (e *Client) getLatestBlockHeaders(
+func (e *Client) GetLatestBlockHeaders(
 	ctx context.Context,
 	count int32,
 ) ([]ergotype.BlockHeader, error) {
@@ -240,7 +149,7 @@ func (e *Client) getLatestBlockHeaders(
 }
 
 // Get a ergo block by index (height)
-func (e *Client) getBlockByIndex(
+func (e *Client) GetBlockByIndex(
 	ctx context.Context,
 	indexPtr *int64,
 ) (*ergotype.FullBlock, error) {
@@ -262,10 +171,10 @@ func (e *Client) getBlockByIndex(
 		return nil, fmt.Errorf("%w: no blocks found at index %d", err, index)
 	}
 
-	return e.getBlockByID(ctx, &blockHeaders[0])
+	return e.GetBlockByID(ctx, &blockHeaders[0])
 }
 
-func (e *Client) getBlockByID(
+func (e *Client) GetBlockByID(
 	ctx context.Context,
 	idPtr *string,
 ) (*ergotype.FullBlock, error) {

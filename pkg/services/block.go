@@ -5,23 +5,29 @@ import (
 
 	"github.com/coinbase/rosetta-sdk-go/server"
 	"github.com/coinbase/rosetta-sdk-go/types"
-	"github.com/ross-weir/rosetta-ergo/configuration"
+	"github.com/ross-weir/rosetta-ergo/pkg/config"
+	"github.com/ross-weir/rosetta-ergo/pkg/errutil"
+	"github.com/ross-weir/rosetta-ergo/pkg/storage"
 )
+
+// txFetchLimit is the maximum number
+// of transactions to fetch inline.
+const txFetchLimit = 100
 
 // BlockAPIService implements the server.BlockAPIServicer interface.
 type BlockAPIService struct {
-	config *configuration.Configuration
-	i      Indexer
+	config  *config.Configuration
+	storage *storage.Storage
 }
 
 // NewBlockAPIService creates a new instance of a BlockAPIService.
 func NewBlockAPIService(
-	config *configuration.Configuration,
-	i Indexer,
+	config *config.Configuration,
+	storage *storage.Storage,
 ) server.BlockAPIServicer {
 	return &BlockAPIService{
-		config: config,
-		i:      i,
+		config:  config,
+		storage: storage,
 	}
 }
 
@@ -30,30 +36,31 @@ func (s *BlockAPIService) Block(
 	ctx context.Context,
 	request *types.BlockRequest,
 ) (*types.BlockResponse, *types.Error) {
-	if s.config.Mode != configuration.Online {
-		return nil, wrapErr(ErrUnavailableOffline, nil)
+	if s.config.Mode != config.Online {
+		return nil, errutil.WrapErr(errutil.ErrUnavailableOffline, nil)
 	}
 
-	blockResponse, err := s.i.GetBlockLazy(ctx, request.BlockIdentifier)
+	blockStorage := s.storage.Block()
+	blockResponse, err := blockStorage.GetBlockLazy(ctx, request.BlockIdentifier)
 	if err != nil {
-		return nil, wrapErr(ErrBlockNotFound, err)
+		return nil, errutil.WrapErr(errutil.ErrBlockNotFound, err)
 	}
 
 	// Direct client to fetch transactions individually if
 	// more than inlineFetchLimit.
-	if len(blockResponse.OtherTransactions) > inlineFetchLimit {
+	if len(blockResponse.OtherTransactions) > txFetchLimit {
 		return blockResponse, nil
 	}
 
 	txs := make([]*types.Transaction, len(blockResponse.OtherTransactions))
 	for i, otherTx := range blockResponse.OtherTransactions {
-		transaction, err := s.i.GetBlockTransaction(
+		transaction, err := blockStorage.GetBlockTransaction(
 			ctx,
 			blockResponse.Block.BlockIdentifier,
 			otherTx,
 		)
 		if err != nil {
-			return nil, wrapErr(ErrTransactionNotFound, err)
+			return nil, errutil.WrapErr(errutil.ErrTransactionNotFound, err)
 		}
 
 		txs[i] = transaction
@@ -69,17 +76,17 @@ func (s *BlockAPIService) BlockTransaction(
 	ctx context.Context,
 	request *types.BlockTransactionRequest,
 ) (*types.BlockTransactionResponse, *types.Error) {
-	if s.config.Mode != configuration.Online {
-		return nil, wrapErr(ErrUnavailableOffline, nil)
+	if s.config.Mode != config.Online {
+		return nil, errutil.WrapErr(errutil.ErrUnavailableOffline, nil)
 	}
 
-	transaction, err := s.i.GetBlockTransaction(
+	transaction, err := s.storage.Block().GetBlockTransaction(
 		ctx,
 		request.BlockIdentifier,
 		request.TransactionIdentifier,
 	)
 	if err != nil {
-		return nil, wrapErr(ErrTransactionNotFound, err)
+		return nil, errutil.WrapErr(errutil.ErrTransactionNotFound, err)
 	}
 
 	return &types.BlockTransactionResponse{
