@@ -108,6 +108,6 @@ func (s *Storage) Coin() *modules.CoinStorage {
 	return s.coin
 }
 
-func (s *Storage) Db() database.Database {
+func (s *Storage) DB() database.Database {
 	return s.db
 }

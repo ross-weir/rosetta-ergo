@@ -108,7 +108,7 @@ func (s *AccountAPIService) getBalance(
 	currency *types.Currency,
 	blockIdentifier *types.PartialBlockIdentifier,
 ) (*types.Amount, *types.BlockIdentifier, error) {
-	dbTx := s.storage.Db().ReadTransaction(ctx)
+	dbTx := s.storage.DB().ReadTransaction(ctx)
 	defer dbTx.Discard(ctx)
 
 	blockResponse, err := s.storage.Block().GetBlockLazyTransactional(

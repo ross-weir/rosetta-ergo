@@ -45,7 +45,7 @@ func (c *BlockConverter) BlockToRosettaBlock(
 	parsedTxs := make([]*types.Transaction, len(ergoTxs))
 
 	for idx, ergoTx := range ergoTxs {
-		parsedTx, err := c.TxToRosettaTx(ctx, &ergoTx)
+		parsedTx, err := c.TxToRosettaTx(ctx, &ergoTxs[idx])
 		if err != nil {
 			return nil, fmt.Errorf(
 				"%w: error parsing transaction operations, txId: %s",

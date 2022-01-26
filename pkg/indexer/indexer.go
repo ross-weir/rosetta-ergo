@@ -219,20 +219,20 @@ func (i *Indexer) Block(
 
 func (i *Indexer) getBlockByIdentifier(
 	ctx context.Context,
-	blockId *types.PartialBlockIdentifier,
+	blockID *types.PartialBlockIdentifier,
 ) (*ergotype.FullBlock, error) {
 	var block *ergotype.FullBlock
 	var err error
 
-	if blockId.Hash != nil {
-		block, err = i.client.GetBlockByID(ctx, blockId.Hash)
+	if blockID.Hash != nil {
+		block, err = i.client.GetBlockByID(ctx, blockID.Hash)
 		if err != nil {
 			return nil, err
 		}
 	}
 
-	if blockId.Index != nil {
-		block, err = i.client.GetBlockByIndex(ctx, blockId.Index)
+	if blockID.Index != nil {
+		block, err = i.client.GetBlockByIndex(ctx, blockID.Index)
 		if err != nil {
 			return nil, err
 		}
@@ -547,7 +547,7 @@ func (i *Indexer) findCoin(
 
 	for ctx.Err() == nil {
 		startSeen := i.seen
-		databaseTransaction := i.storage.Db().ReadTransaction(ctx)
+		databaseTransaction := i.storage.DB().ReadTransaction(ctx)
 		defer databaseTransaction.Discard(ctx)
 
 		coinHeadBlock, err := blockStorage.GetHeadBlockIdentifierTransactional(

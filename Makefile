@@ -20,6 +20,9 @@ run:
 test:
 	${TEST_SCRIPT}
 
+lint:
+	golangci-lint run
+
 shorten-lines:
 	${GOLINES_INSTALL}
 	${GOLINES_CMD} -w --shorten-comments pkg cmd

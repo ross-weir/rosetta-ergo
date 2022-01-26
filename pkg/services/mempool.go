@@ -110,7 +110,7 @@ func (s *MempoolAPIService) findCoinsForMempoolTx(
 	coinMap := map[string]*types.AccountCoin{}
 
 	for _, inputCtx := range inputs {
-		databaseTransaction := s.storage.Db().ReadTransaction(ctx)
+		databaseTransaction := s.storage.DB().ReadTransaction(ctx)
 		defer databaseTransaction.Discard(ctx)
 
 		// Attempt to find coin
