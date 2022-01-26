@@ -9,6 +9,7 @@ import (
 	"github.com/ross-weir/rosetta-ergo/pkg/config"
 	"github.com/ross-weir/rosetta-ergo/pkg/ergo"
 	"github.com/ross-weir/rosetta-ergo/pkg/errutil"
+	"github.com/ross-weir/rosetta-ergo/pkg/rosetta"
 	"github.com/ross-weir/rosetta-ergo/pkg/storage"
 )
 
@@ -59,9 +60,19 @@ func (s *NetworkAPIService) NetworkStatus(
 		return nil, errutil.WrapErr(errutil.ErrUnavailableOffline, nil)
 	}
 
-	peers, err := s.client.GetPeers(ctx)
+	connectedPeers, err := s.client.GetConnectedPeers(ctx)
 	if err != nil {
 		return nil, errutil.WrapErr(errutil.ErrErgoNode, err)
+	}
+
+	peers := make([]*types.Peer, len(connectedPeers))
+	for i := range connectedPeers {
+		peer, err := rosetta.PeerToRosettaPeer(&connectedPeers[i])
+		if err != nil {
+			return nil, errutil.WrapErr(errutil.ErrErgoNode, err)
+		}
+
+		peers[i] = peer
 	}
 
 	cachedBlockResponse, err := s.storage.Block().GetBlockLazy(ctx, nil)

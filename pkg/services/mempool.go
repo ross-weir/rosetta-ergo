@@ -12,6 +12,7 @@ import (
 	"github.com/ross-weir/rosetta-ergo/pkg/ergo"
 	ergotype "github.com/ross-weir/rosetta-ergo/pkg/ergo/types"
 	"github.com/ross-weir/rosetta-ergo/pkg/errutil"
+	"github.com/ross-weir/rosetta-ergo/pkg/rosetta"
 	"github.com/ross-weir/rosetta-ergo/pkg/storage"
 )
 
@@ -91,20 +92,14 @@ func (s *MempoolAPIService) MempoolTransaction(
 		return nil, errutil.WrapErr(errutil.ErrUnableToGetCoins, err)
 	}
 
-	ops, err := ergo.ErgoTransactionToRosettaOps(ctx, s.client, requestedTx, accountCoins)
+	converter := rosetta.NewBlockConverter(s.client, accountCoins)
+	rosettaTx, err := converter.TxToRosettaTx(ctx, requestedTx)
 	if err != nil {
 		return nil, errutil.WrapErr(errutil.ErrErgoNode, err)
 	}
 
-	tx := &types.Transaction{
-		TransactionIdentifier: &types.TransactionIdentifier{
-			Hash: *requestedTx.ID,
-		},
-		Operations: ops,
-	}
-
 	return &types.MempoolTransactionResponse{
-		Transaction: tx,
+		Transaction: rosettaTx,
 	}, nil
 }
 

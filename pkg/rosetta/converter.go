@@ -25,6 +25,17 @@ type BlockConverter struct {
 	preFetchedInputs map[string]*types.AccountCoin
 }
 
+func NewBlockConverter(
+	e *ergo.Client,
+	preFetchedInputs map[string]*types.AccountCoin,
+) *BlockConverter {
+	return &BlockConverter{
+		e:                e,
+		blockTxInputs:    map[string]*types.AccountCoin{},
+		preFetchedInputs: preFetchedInputs,
+	}
+}
+
 func (c *BlockConverter) BlockToRosettaBlock(
 	ctx context.Context,
 	block *ergotype.FullBlock,
@@ -92,9 +103,9 @@ func (c *BlockConverter) TxToRosettaTx(
 	inputs := *ergoTx.Inputs
 
 	for inputIdx, input := range inputs {
-		acctCoin, ok := c.blockTxInputs[input.BoxID]
-		if !ok {
-			return nil, fmt.Errorf("unable to find inputt %s, for tx: %s", input.BoxID, *ergoTx.ID)
+		acctCoin, err := c.findCoinForInput(input.BoxID)
+		if err != nil {
+			return nil, fmt.Errorf("%w: unable to find input (tx: %s)", err, *ergoTx.ID)
 		}
 
 		txOp, err := c.InputToRosettaOp(
@@ -219,6 +230,20 @@ func (c *BlockConverter) storeTxCoins(tx *types.Transaction) {
 			Account: op.Account,
 		}
 	}
+}
+
+func (c *BlockConverter) findCoinForInput(inputID string) (*types.AccountCoin, error) {
+	acctCoin, ok := c.blockTxInputs[inputID]
+	if ok {
+		return acctCoin, nil
+	}
+
+	acctCoin, ok = c.preFetchedInputs[inputID]
+	if ok {
+		return acctCoin, nil
+	}
+
+	return nil, fmt.Errorf("unable to find input with ID: %s", inputID)
 }
 
 func PeerToRosettaPeer(p *ergotype.Peer) (*types.Peer, error) {

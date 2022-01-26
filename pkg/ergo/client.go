@@ -10,7 +10,6 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/coinbase/rosetta-sdk-go/types"
 	ergotype "github.com/ross-weir/rosetta-ergo/pkg/ergo/types"
 	"go.uber.org/zap"
 )
@@ -75,26 +74,6 @@ func newHTTPClient(timeout time.Duration) *http.Client {
 	}
 
 	return httpClient
-}
-
-// GetPeers gets a list of connected `Peer`s for ergo
-func (e *Client) GetPeers(ctx context.Context) ([]*types.Peer, error) {
-	connectedPeers, err := e.GetConnectedPeers(ctx)
-	if err != nil {
-		return nil, err
-	}
-
-	peers := make([]*types.Peer, len(connectedPeers))
-	for i := range connectedPeers {
-		peer, err := ergoPeerToRosettaPeer(&connectedPeers[i])
-		if err != nil {
-			return nil, fmt.Errorf("%w: unable to convert ergo peer to rosetta peer", err)
-		}
-
-		peers[i] = peer
-	}
-
-	return peers, nil
 }
 
 // GetNodeInfo gets information about the connected Ergo node

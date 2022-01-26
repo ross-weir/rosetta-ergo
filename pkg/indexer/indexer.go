@@ -16,6 +16,7 @@ import (
 	"github.com/ross-weir/rosetta-ergo/pkg/config"
 	"github.com/ross-weir/rosetta-ergo/pkg/ergo"
 	ergotype "github.com/ross-weir/rosetta-ergo/pkg/ergo/types"
+	"github.com/ross-weir/rosetta-ergo/pkg/rosetta"
 	"github.com/ross-weir/rosetta-ergo/pkg/storage"
 	"go.uber.org/zap"
 	"golang.org/x/sync/semaphore"
@@ -105,7 +106,7 @@ func InitIndexer(
 func (i *Indexer) waitForNode(ctx context.Context) error {
 	for {
 		// TODO: is there a better way to check if node is ready to serve?
-		_, err := i.client.GetPeers(ctx)
+		_, err := i.client.GetConnectedPeers(ctx)
 		if err == nil {
 			return nil
 		}
@@ -201,7 +202,10 @@ func (i *Indexer) Block(
 		return nil, fmt.Errorf("%w: unable to find inputs", err)
 	}
 
-	block, err := ergo.ErgoBlockToRosetta(ctx, i.client, ergoBlock, coinMap)
+	converter := rosetta.NewBlockConverter(i.client, coinMap)
+	block, err := converter.BlockToRosettaBlock(ctx, ergoBlock)
+	// block, err := ergo.ErgoBlockToRosetta(ctx, i.client, ergoBlock, coinMap)
+
 	if err != nil {
 		return nil, err
 	}
@@ -213,7 +217,10 @@ func (i *Indexer) Block(
 	return block, nil
 }
 
-func (i *Indexer) getBlockByIdentifier(ctx context.Context, blockId *types.PartialBlockIdentifier) (*ergotype.FullBlock, error) {
+func (i *Indexer) getBlockByIdentifier(
+	ctx context.Context,
+	blockId *types.PartialBlockIdentifier,
+) (*ergotype.FullBlock, error) {
 	var block *ergotype.FullBlock
 	var err error
 
@@ -669,9 +676,19 @@ func (i *Indexer) NetworkStatus(
 	ctx context.Context,
 	network *types.NetworkIdentifier,
 ) (*types.NetworkStatusResponse, error) {
-	peers, err := i.client.GetPeers(ctx)
+	connectedPeers, err := i.client.GetConnectedPeers(ctx)
 	if err != nil {
 		return nil, err
+	}
+
+	peers := make([]*types.Peer, len(connectedPeers))
+	for i := range connectedPeers {
+		peer, err := rosetta.PeerToRosettaPeer(&connectedPeers[i])
+		if err != nil {
+			return nil, err
+		}
+
+		peers[i] = peer
 	}
 
 	cachedBlockResponse, err := i.storage.Block().GetBlockLazy(ctx, nil)
