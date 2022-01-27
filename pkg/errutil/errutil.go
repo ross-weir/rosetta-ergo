@@ -11,19 +11,19 @@ var (
 		ErrNotReady,
 		ErrErgoNode,
 		ErrBlockNotFound,
-		// ErrUnableToDerive,
-		// ErrUnclearIntent,
-		// ErrUnableToParseIntermediateResult,
-		// ErrScriptPubKeysMissing,
-		// ErrInvalidCoin,
-		// ErrUnableToDecodeAddress,
-		// ErrUnableToDecodeScriptPubKey,
-		// ErrUnableToCalculateSignatureHash,
-		// ErrUnsupportedScriptType,
-		// ErrUnableToComputePkScript,
+		ErrUnableToDerive,
+		ErrUnclearIntent,
+		ErrUnableToParseIntermediateResult,
+		ErrScriptPubKeysMissing,
+		ErrInvalidCoin,
+		ErrUnableToDecodeAddress,
+		ErrUnableToDecodeScriptPubKey,
+		ErrUnableToCalculateSignatureHash,
+		ErrUnsupportedScriptType,
+		ErrUnableToComputePkScript,
 		ErrUnableToGetCoins,
 		ErrTransactionNotFound,
-		// ErrCouldNotGetFeeRate,
+		ErrCouldNotGetFeeRate,
 		ErrUnableToGetBalance,
 	}
 
@@ -41,15 +41,15 @@ var (
 		Message: "Endpoint unavailable offline",
 	}
 
-	// ErrNotReady is returned when node is not
+	// ErrNotReady is returned when ergo node is not
 	// yet ready to serve queries.
 	ErrNotReady = &types.Error{
 		Code:      2, //nolint
-		Message:   "Ergo node is not ready",
+		Message:   "ergo node is not ready",
 		Retriable: true,
 	}
 
-	// ErrErgoNode is returned when ergo
+	// ErrErgoNode is returned when ergo node
 	// errors on a request.
 	ErrErgoNode = &types.Error{
 		Code:    3, //nolint
@@ -61,6 +61,80 @@ var (
 	ErrBlockNotFound = &types.Error{
 		Code:    4, //nolint
 		Message: "Block not found",
+	}
+
+	// ErrUnableToDerive is returned when an address
+	// cannot be derived from a provided public key.
+	ErrUnableToDerive = &types.Error{
+		Code:    5, //nolint
+		Message: "Unable to derive address",
+	}
+
+	// ErrUnclearIntent is returned when operations
+	// provided in /construction/preprocess or /construction/payloads
+	// are not valid.
+	ErrUnclearIntent = &types.Error{
+		Code:    6, //nolint
+		Message: "Unable to parse intent",
+	}
+
+	// ErrUnableToParseIntermediateResult is returned
+	// when a data structure passed between Construction
+	// API calls is not valid.
+	ErrUnableToParseIntermediateResult = &types.Error{
+		Code:    7, //nolint
+		Message: "Unable to parse intermediate result",
+	}
+
+	// ErrScriptPubKeysMissing is returned when
+	// the indexer cannot populate the required
+	ErrScriptPubKeysMissing = &types.Error{
+		Code:    8, //nolint
+		Message: "Missing ScriptPubKeys",
+	}
+
+	// ErrInvalidCoin is returned when a *types.Coin
+	// cannot be parsed during construction.
+	ErrInvalidCoin = &types.Error{
+		Code:    9, //nolint
+		Message: "Coin is invalid",
+	}
+
+	// ErrUnableToDecodeAddress is returned when an address
+	// cannot be parsed during construction.
+	ErrUnableToDecodeAddress = &types.Error{
+		Code:    10, //nolint
+		Message: "Unable to decode address",
+	}
+
+	// ErrUnableToDecodeScriptPubKey is returned when a
+	// ScriptPubKey cannot be parsed during construction.
+	ErrUnableToDecodeScriptPubKey = &types.Error{
+		Code:    11, //nolint
+		Message: "Unable to decode ScriptPubKey",
+	}
+
+	// ErrUnableToCalculateSignatureHash is returned
+	// when some payload to sign cannot be generated.
+	ErrUnableToCalculateSignatureHash = &types.Error{
+		Code:    12, //nolint
+		Message: "Unable to calculate signature hash",
+	}
+
+	// ErrUnsupportedScriptType is returned when
+	// trying to sign an input with an unsupported
+	// script type.
+	ErrUnsupportedScriptType = &types.Error{
+		Code:    13, //nolint
+		Message: "Script type is not supported",
+	}
+
+	// ErrUnableToComputePkScript is returned
+	// when trying to compute the PkScript in
+	// ConsructionParse.
+	ErrUnableToComputePkScript = &types.Error{
+		Code:    14, //nolint
+		Message: "Unable to compute PK script",
 	}
 
 	// ErrUnableToGetCoins is returned by the indexer
@@ -76,6 +150,13 @@ var (
 	ErrTransactionNotFound = &types.Error{
 		Code:    16, // nolint
 		Message: "Transaction not found",
+	}
+
+	// ErrCouldNotGetFeeRate is returned when the fetch
+	// to get the suggested fee rate fails.
+	ErrCouldNotGetFeeRate = &types.Error{
+		Code:    17, // nolint
+		Message: "Could not get suggested fee rate",
 	}
 
 	// ErrUnableToGetBalance is returned by the indexer

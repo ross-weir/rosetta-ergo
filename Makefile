@@ -3,7 +3,7 @@
 APP=github.com/ross-weir/rosetta-ergo
 APP_VER=$(shell cat ./VERSION)
 LDFLAGS=-ldflags "-X '${APP}/pkg/config.Version=${APP_VER}'"
-TEST_SCRIPT=go test pkg
+TEST_SCRIPT=go test ./pkg/...
 
 GOLINES_INSTALL=go install github.com/segmentio/golines@latest
 GOLINES_CMD=golines
