@@ -66,10 +66,6 @@ func startOnlineDependencies(
 		l,
 	)
 
-	g.Go(func() error {
-		return ergo.StartErgoNode(ctx, "", l, g)
-	})
-
 	onlineAsserter, err := asserter.NewClientWithOptions(
 		cfg.Network,
 		cfg.GenesisBlockIdentifier,
@@ -146,6 +142,12 @@ func runCmdHandler(startNode bool) error {
 	var i *indexer.Indexer
 	var storage *storage.Storage
 	if cfg.Mode == config.Online {
+		if startNode {
+			g.Go(func() error {
+				return ergo.StartErgoNode(ctx, "", zapLogger, g)
+			})
+		}
+
 		client, i, storage, err = startOnlineDependencies(ctx, cancel, cfg, g, zapLogger)
 		if err != nil {
 			l.Fatalw("unable to start online dependencies", "error", err)
