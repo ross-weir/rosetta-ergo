@@ -38,13 +38,21 @@ const (
 	idleTimeout = 30 * time.Second
 )
 
-var (
-	runCmd = &cobra.Command{
+func initRunCmd() *cobra.Command {
+	var startNode bool
+
+	runCmd := &cobra.Command{
 		Use:   "run",
 		Short: "Run rosetta-ergo",
-		RunE:  runCmdHandler,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return runCmdHandler(startNode)
+		},
 	}
-)
+
+	runCmd.Flags().BoolVar(&startNode, "start-node", false, "Launch a Ergo node")
+
+	return runCmd
+}
 
 func startOnlineDependencies(
 	ctx context.Context,
@@ -57,6 +65,10 @@ func startOnlineDependencies(
 		ergo.LocalNodeURL(cfg.NodePort),
 		l,
 	)
+
+	g.Go(func() error {
+		return ergo.StartErgoNode(ctx, "", l, g)
+	})
 
 	onlineAsserter, err := asserter.NewClientWithOptions(
 		cfg.Network,
@@ -95,7 +107,7 @@ func startOnlineDependencies(
 	return client, i, storage, nil
 }
 
-func runCmdHandler(cmd *cobra.Command, args []string) error {
+func runCmdHandler(startNode bool) error {
 	zapLogger, err := zap.NewDevelopment()
 
 	if err != nil {

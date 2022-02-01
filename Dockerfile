@@ -76,4 +76,11 @@ WORKDIR /app
 COPY --from=node-builder /app/ergo/ergo.jar /app/ergo.jar
 COPY --from=rosetta-builder /app/* /app/
 
+# mainnet node network
+EXPOSE 9030
+# testnet node network
+EXPOSE 9020
+# rosetta webserver
+EXPOSE 8080
+
 RUN chmod -R 755 /app/*
