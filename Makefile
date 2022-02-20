@@ -1,12 +1,15 @@
 .PHONY: deps build run test shorten-lines
 
-APP=github.com/ross-weir/rosetta-ergo
-APP_VER=$(shell cat ./VERSION)
-LDFLAGS=-ldflags "-X '${APP}/pkg/config.Version=${APP_VER}'"
+APP=rosetta-ergo
+PACKAGE=github.com/ross-weir/${APP}
+PACKAGE_VER=$(shell cat ./VERSION)
+LDFLAGS=-ldflags "-X '${PACKAGE}/pkg/config.Version=${PACKAGE_VER}'"
 TEST_SCRIPT=go test ./pkg/...
 
 GOLINES_INSTALL=go install github.com/segmentio/golines@latest
 GOLINES_CMD=golines
+
+ERGO_NETWORK=testnet
 
 deps:
 	go get ./...
@@ -26,3 +29,21 @@ lint:
 shorten-lines:
 	${GOLINES_INSTALL}
 	${GOLINES_CMD} -w --shorten-comments pkg cmd
+
+docker-build:
+	docker build \
+		-t ${APP}:${PACKAGE_VER} \
+		.
+
+docker-run:
+	docker run -it \
+		--entrypoint bash \
+		-v ${CURDIR}/data/${ERGO_NETWORK}:/data \
+		-e ERGO_ROSETTA_PORT=8080 \
+		-e ERGO_NETWORK=${ERGO_NETWORK} \
+		-e ERGO_ROSETTA_MODE=ONLINE \
+		-p 8080:8080 \
+		-p 9030:9030 \
+		-p 9020:9020 \
+		-p 9052:9052 \
+		${APP}:${PACKAGE_VER}

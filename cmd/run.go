@@ -143,8 +143,13 @@ func runCmdHandler(startNode bool) error {
 	var storage *storage.Storage
 	if cfg.Mode == config.Online {
 		if startNode {
+			nodeCfg := ergo.NodeConfiguration{
+				Network:        cfg.Network.Network,
+				ConfigFilePath: cfg.NodeConfigPath,
+			}
+
 			g.Go(func() error {
-				return ergo.StartErgoNode(ctx, "", zapLogger, g)
+				return ergo.StartErgoNode(ctx, &nodeCfg, zapLogger, g)
 			})
 		}
 

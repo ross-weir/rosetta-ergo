@@ -111,7 +111,7 @@ func (i *Indexer) waitForNode(ctx context.Context) error {
 			return nil
 		}
 
-		i.logger.Infow("waiting for ergo node...")
+		i.logger.Infow("waiting for ergo node...", "err", err)
 		if err := sdkUtils.ContextSleep(ctx, nodeWaitSleep); err != nil {
 			return err
 		}

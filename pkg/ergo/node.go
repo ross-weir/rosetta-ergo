@@ -7,53 +7,49 @@ import (
 	"io"
 	"os"
 	"os/exec"
-	"strings"
+	"path"
 
 	"go.uber.org/zap"
 	"golang.org/x/sync/errgroup"
 )
+
+type NodeConfiguration struct {
+	Network        string
+	ConfigFilePath string
+}
 
 const (
 	ergoLogger       = "ergo-node"
 	ergoStdErrLogger = "ergo-node stderr"
 )
 
-func logPipe(ctx context.Context, pipe io.ReadCloser, identifier string, l *zap.Logger) error {
-	logger := l.Sugar().Named(identifier)
-	reader := bufio.NewReader(pipe)
-	for {
-		str, err := reader.ReadString('\n')
-		if err != nil {
-			logger.Warnw("closing logger", "error", err)
-			return err
-		}
+func logPipe(ctx context.Context, pipe io.ReadCloser, identifier string) error {
+	sc := bufio.NewScanner(pipe)
 
-		message := strings.ReplaceAll(str, "\n", "")
-		messages := strings.SplitAfterN(message, " ", 2)
+	for sc.Scan() {
+		text := sc.Text()
 
-		// Trim the timestamp from the log if it exists
-		if len(messages) > 1 {
-			message = messages[1]
-		}
-
-		// Print debug log if from bitcoindLogger
-		if identifier == ergoLogger {
-			logger.Debugw(message)
-			continue
-		}
-
-		logger.Warnw(message)
+		fmt.Printf("%s: %s\n", identifier, text)
 	}
+
+	return sc.Err()
 }
 
 // StartErgoNode starts a ergo node in another goroutine
 // and logs the results to the console.
-func StartErgoNode(ctx context.Context, configPath string, l *zap.Logger, g *errgroup.Group) error {
+func StartErgoNode(ctx context.Context, cfg *NodeConfiguration, l *zap.Logger, g *errgroup.Group) error {
 	logger := l.Sugar().Named("ergo-node")
+	javaHome := os.Getenv("JAVA_HOME")
+	javaPath := path.Join(javaHome, "bin", "java")
+
+	logger.Debugf("javaPath: %s | network: %s | configPath: %s", javaPath, cfg.Network, cfg.ConfigFilePath)
+
 	cmd := exec.Command(
-		"java -jar /app/ergo.jar",
-		"--testnet",
-		fmt.Sprintf("-c=%s", configPath),
+		javaPath,
+		"-jar",
+		"/app/ergo.jar",
+		fmt.Sprintf("--%s", cfg.Network),
+		fmt.Sprintf("-c=%s", cfg.ConfigFilePath),
 	) // #nosec G204
 
 	stdout, err := cmd.StdoutPipe()
@@ -67,11 +63,11 @@ func StartErgoNode(ctx context.Context, configPath string, l *zap.Logger, g *err
 	}
 
 	g.Go(func() error {
-		return logPipe(ctx, stdout, ergoLogger, l)
+		return logPipe(ctx, stdout, ergoLogger)
 	})
 
 	g.Go(func() error {
-		return logPipe(ctx, stderr, ergoStdErrLogger, l)
+		return logPipe(ctx, stderr, ergoStdErrLogger)
 	})
 
 	if err := cmd.Start(); err != nil {
