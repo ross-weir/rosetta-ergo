@@ -46,6 +46,7 @@ func StartErgoNode(ctx context.Context, cfg *NodeConfiguration, l *zap.Logger, g
 
 	cmd := exec.Command(
 		javaPath,
+		"-Dfile.encoding=UTF-8",
 		"-jar",
 		"/app/ergo.jar",
 		fmt.Sprintf("--%s", cfg.Network),

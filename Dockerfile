@@ -1,4 +1,5 @@
 # Rosetta requirements for docker images: https://www.rosetta-api.org/docs/node_deployment.html#dockerfile-expectations
+# openjdk/sbt images are debian based, we must use ubuntu according to the rosetta docker requirements.
 
 ARG JAVA_VERSION=11.0.12-open
 
