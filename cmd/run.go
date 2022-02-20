@@ -38,13 +38,21 @@ const (
 	idleTimeout = 30 * time.Second
 )
 
-var (
-	runCmd = &cobra.Command{
+func initRunCmd() *cobra.Command {
+	var startNode bool
+
+	runCmd := &cobra.Command{
 		Use:   "run",
 		Short: "Run rosetta-ergo",
-		RunE:  runCmdHandler,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			return runCmdHandler(startNode)
+		},
 	}
-)
+
+	runCmd.Flags().BoolVar(&startNode, "start-node", false, "Launch a Ergo node")
+
+	return runCmd
+}
 
 func startOnlineDependencies(
 	ctx context.Context,
@@ -95,7 +103,7 @@ func startOnlineDependencies(
 	return client, i, storage, nil
 }
 
-func runCmdHandler(cmd *cobra.Command, args []string) error {
+func runCmdHandler(startNode bool) error {
 	zapLogger, err := zap.NewDevelopment()
 
 	if err != nil {
@@ -134,6 +142,17 @@ func runCmdHandler(cmd *cobra.Command, args []string) error {
 	var i *indexer.Indexer
 	var storage *storage.Storage
 	if cfg.Mode == config.Online {
+		if startNode {
+			nodeCfg := ergo.NodeConfiguration{
+				Network:        cfg.Network.Network,
+				ConfigFilePath: cfg.NodeConfigPath,
+			}
+
+			g.Go(func() error {
+				return ergo.StartErgoNode(ctx, &nodeCfg, zapLogger, g)
+			})
+		}
+
 		client, i, storage, err = startOnlineDependencies(ctx, cancel, cfg, g, zapLogger)
 		if err != nil {
 			l.Fatalw("unable to start online dependencies", "error", err)

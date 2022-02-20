@@ -1,6 +1,6 @@
 # Rosetta requirements for docker images: https://www.rosetta-api.org/docs/node_deployment.html#dockerfile-expectations
 
-ARG JAVA_VERSION=11.0.2-open
+ARG JAVA_VERSION=11.0.12-open
 
 FROM ubuntu:20.04 as node-builder
 
@@ -58,10 +58,14 @@ FROM ubuntu:20.04
 
 ARG JAVA_VERSION
 
+ENV ERGO_ROSETTA_DATA_DIR /data
+ENV ERGO_CONFIG_DIR /app/configs
+ENV ERGO_ROSETTA_PORT 8080
+
 RUN mkdir -p /app \
     && chown -R nobody:nogroup /app \
-    && mkdir -p /data \
-    && chown -R nobody:nogroup /data
+    && mkdir -p ${ERGO_ROSETTA_DATA_DIR} \
+    && chown -R nobody:nogroup ${ERGO_ROSETTA_DATA_DIR}
 
 # So we can run `source` command
 RUN rm /bin/sh && ln -s /bin/bash /bin/sh
@@ -71,9 +75,22 @@ RUN apt-get update \
     && source "$HOME/.sdkman/bin/sdkman-init.sh" \
     && sdk install java "$JAVA_VERSION"
 
+ENV JAVA_HOME /root/.sdkman/candidates/java/current
+
 WORKDIR /app
 
 COPY --from=node-builder /app/ergo/ergo.jar /app/ergo.jar
 COPY --from=rosetta-builder /app/* /app/
+COPY configs /app/configs
+
+# mainnet node network
+EXPOSE 9030
+# testnet node network
+EXPOSE 9020
+# rosetta webserver
+EXPOSE 8080
 
 RUN chmod -R 755 /app/*
+
+ENTRYPOINT ["/app/rosetta-ergo"]
+CMD ["run", "--start-node"]

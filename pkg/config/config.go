@@ -38,8 +38,7 @@ const (
 	// to the file.
 	allFilePermissions = 0777
 
-	// TODO: node configuration
-	// TODO: node config file path, etc
+	nodeConfigPath = "node.conf"
 
 	// The following env vars will be prefixed with this value
 	EnvVarPrefix = "ERGO_"
@@ -60,6 +59,9 @@ const (
 
 	// The port the rosetta API is listening on
 	RosettaPortEnv = "ROSETTA_PORT"
+
+	// The directory containing configuration files
+	ConfigEnv = "CONFIG_DIR"
 )
 
 type Configuration struct {
@@ -73,12 +75,17 @@ type Configuration struct {
 	IndexerPath            string
 	GenesisUtxoPath        string
 	BootstrapBalancePath   string
+	NodeConfigPath         string
 }
 
 // Create a new configuration based on settings above and env variables
 func LoadConfiguration() (*Configuration, error) {
 	cfg := &Configuration{}
 	baseDirectory := getEnv(RosettaDataDirEnv)
+	configDirectory := getEnv(ConfigEnv)
+	networkValue := getEnv(NetworkEnv)
+
+	cfg.NodeConfigPath = path.Join(configDirectory, nodeConfigPath)
 
 	modeValue := Mode(getEnv(RosettaModeEnv))
 	switch modeValue {
@@ -89,9 +96,8 @@ func LoadConfiguration() (*Configuration, error) {
 			return nil, fmt.Errorf("%w: unable to create indexer path", err)
 		}
 
-		cfg.GenesisUtxoPath = path.Join(baseDirectory, genesisUtxoPath)
-		cfg.BootstrapBalancePath = path.Join(baseDirectory, bootstrapBalancePath)
-
+		cfg.GenesisUtxoPath = path.Join(configDirectory, networkValue, genesisUtxoPath)
+		cfg.BootstrapBalancePath = path.Join(configDirectory, networkValue, bootstrapBalancePath)
 	case Offline:
 		cfg.Mode = Offline
 	case "":
@@ -102,9 +108,6 @@ func LoadConfiguration() (*Configuration, error) {
 
 	cfg.Currency = ergo.Currency
 	cfg.Version = Version
-
-	// network specific configuration
-	networkValue := getEnv(NetworkEnv)
 	switch networkValue {
 	case Mainnet:
 		cfg.Network = &types.NetworkIdentifier{
@@ -112,8 +115,6 @@ func LoadConfiguration() (*Configuration, error) {
 			Network:    ergo.MainnetNetwork,
 		}
 		cfg.GenesisBlockIdentifier = ergo.MainnetGenesisBlockIdentifier
-		// config.Params = bitcoin.MainnetParams
-		// config.ConfigPath = mainnetConfigPath
 		cfg.NodePort = mainnetNodePort
 	case Testnet:
 		cfg.Network = &types.NetworkIdentifier{
@@ -121,8 +122,6 @@ func LoadConfiguration() (*Configuration, error) {
 			Network:    ergo.TestnetNetwork,
 		}
 		cfg.GenesisBlockIdentifier = ergo.TestnetGenesisBlockIdentifier
-		// config.Params = bitcoin.TestnetParams
-		// config.ConfigPath = testnetConfigPath
 		cfg.NodePort = testnetNodePort
 	case "":
 		return nil, fmt.Errorf("%s%s must be populated", EnvVarPrefix, NetworkEnv)
