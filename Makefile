@@ -37,7 +37,6 @@ docker-build:
 
 docker-run:
 	docker run -it \
-		--entrypoint bash \
 		-v ${CURDIR}/data/${ERGO_NETWORK}:/data \
 		-e ERGO_ROSETTA_PORT=8080 \
 		-e ERGO_NETWORK=${ERGO_NETWORK} \
