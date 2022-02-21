@@ -105,8 +105,9 @@ func InitIndexer(
 // block queries.
 func (i *Indexer) waitForNode(ctx context.Context) error {
 	for {
-		// TODO: is there a better way to check if node is ready to serve?
-		_, err := i.client.GetConnectedPeers(ctx)
+		// Wait until the node can start returning blocks by id.
+		// This seems to happen after the node has fully sync'd.
+		_, err := i.client.GetBlockByID(ctx, &i.cfg.GenesisBlockIdentifier.Hash)
 		if err == nil {
 			return nil
 		}
