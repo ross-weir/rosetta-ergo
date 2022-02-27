@@ -12,6 +12,10 @@ import (
 
 // BlockConverter converts a full ergo block into a full rosetta block
 type BlockConverter struct {
+	// Ergo client is required to convert ergo trees into network addresses
+	// Network addresses are currently used for the AccountIdentifier.
+	// Should we just use ergo trees instead and leave it up to consumers
+	// to convert to network addresses?
 	e *ergo.Client
 
 	// blockTxInputs is a running cache of outputs that are
@@ -156,9 +160,18 @@ func (c *BlockConverter) OutputToRosettaOp(
 		CoinAction: types.CoinCreated,
 	}
 
-	addr, err := c.e.TreeToAddress(ctx, o.ErgoTree)
-	if err != nil {
-		return nil, fmt.Errorf("%w: failed to get address from ergo tree", err)
+	var addr *string
+	var err error
+
+	// unparsed ergo tree error when using TreeToAddress
+	// not sure of a way around this currently
+	if o.ErgoTree == "cd07021a8e6f59fd4a" {
+		addr = types.String("4MQyMKvMbnCJG3aJ")
+	} else {
+		addr, err = c.e.TreeToAddress(ctx, o.ErgoTree)
+		if err != nil {
+			return nil, fmt.Errorf("%w: failed to get address from ergo tree", err)
+		}
 	}
 
 	account := &types.AccountIdentifier{Address: *addr}

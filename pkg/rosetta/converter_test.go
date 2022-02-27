@@ -75,3 +75,56 @@ func TestHeaderToRosettaBlockGenesis(t *testing.T) {
 
 	assert.True(t, cmp.Equal(actual, &expected))
 }
+
+// func TestBlockToRosettaBlock(t *testing.T) {
+// 	ergoBlockJSON, _ := ioutil.ReadFile("testdata/ergo_block.json")
+// 	ergoBlock := ergotype.FullBlock{}
+// 	_ = json.Unmarshal([]byte(ergoBlockJSON), &ergoBlock)
+
+// 	expected := &types.Block{
+// 		BlockIdentifier: &types.BlockIdentifier{
+// 			Index: 2310,
+// 			Hash:  "3aca13c532e2085b2158f924b1ca92539d4612b1ac2e62a48ceb2d0043b33db7",
+// 		},
+// 		ParentBlockIdentifier: &types.BlockIdentifier{
+// 			Index: 2309,
+// 			Hash:  "daf460f25be46b6b7d3683d61ff98562c4c5cf2c4fc76021b983c6c750b11548",
+// 		},
+// 		Timestamp: 1622012800818,
+// 		Transactions: []*types.Transaction{
+// 			&types.Transaction{
+// 				TransactionIdentifier: &types.TransactionIdentifier{
+// 					Hash: "5f1a470c1c9e3a18b2d9a13ad319603b55e4df31d37cc2fbcae6dabe43257b6f",
+// 				},
+// 				Operations: []*types.Operation{
+// 					&types.Operation{
+// 						OperationIdentifier: &types.OperationIdentifier{
+// 							Index:        0,
+// 							NetworkIndex: types.Int64(0),
+// 						},
+// 						Type:   "INPUT",
+// 						Status: types.String("SUCCESS"),
+// 						Account: &types.AccountIdentifier{
+// 							Address: "AfYgQf5PappexKq8Vpig4vwEuZLjrq7gV97BWBVcKymTYqRzCoJLE9cDBpGHvtAAkAgQf8Yyv7NQUjSphKSjYxk3dB3W8VXzHzz5MuCcNbqqKHnMDZAa6dbHH1uyMScq5rXPLFD5P8MWkD5FGE6RbHKrKjANcr6QZHcBpppdjh9r5nra4c7dsCgULFZfWYTaYqHpx646BUHhhp8jDCHzzF33G8XfgKYo93ABqmdqagbYRzrqCgPHv5kxRmFt7Y99z26VQTgXoEmXJ2aRu6LoB59rKN47JxWGos27D79kKzJRiyYNEVzXU8MYCxtAwV",
+// 						},
+// 						Amount: &types.Amount{
+// 							Value: "93253275000000000",
+// 							Currency: &types.Currency{
+// 								Symbol:   "ERG",
+// 								Decimals: 9,
+// 							},
+// 						},
+// 						CoinChange: &types.CoinChange{
+// 							CoinIdentifier: &types.CoinIdentifier{
+// 								Identifier: "0d7b164a0341b726130cb5a6c4f8f4f4b227ca54099323f32a83de004567b76e",
+// 							},
+// 							CoinAction: "coin_spent",
+// 						},
+// 					},
+// 				},
+// 			},
+// 		},
+// 	}
+
+// 	assert.Equal(t, ergoBlock, nil)
+// }
