@@ -37,7 +37,7 @@ const (
 	retryLimit = 5
 
 	// Sleep time between checking node status
-	nodeWaitSleep           = 3 * time.Second
+	nodeWaitSleep           = 6 * time.Second
 	missingTransactionDelay = 200 * time.Millisecond
 
 	// semaphoreWeight is the weight of each semaphore request.
