@@ -72,6 +72,7 @@ func (c *BlockConverter) TxToRosettaTx(
 ) (*types.Transaction, error) {
 	txOps := []*types.Operation{}
 	inputs := *ergoTx.Inputs
+	var relatedOps []*types.OperationIdentifier
 
 	for inputIdx, input := range inputs {
 		acctCoin, err := c.findCoinForInput(input.BoxID)
@@ -90,11 +91,12 @@ func (c *BlockConverter) TxToRosettaTx(
 		}
 
 		txOps = append(txOps, txOp)
+		relatedOps = append(relatedOps, &types.OperationIdentifier{Index: txOp.OperationIdentifier.Index})
 	}
 
 	outputs := *ergoTx.Outputs
 	for outputIdx, output := range outputs {
-		txOp, err := c.OutputToRosettaOp(ctx, &outputs[outputIdx], int64(len(txOps)))
+		txOp, err := c.OutputToRosettaOp(ctx, &outputs[outputIdx], int64(len(txOps)), relatedOps)
 		if err != nil {
 			return nil, fmt.Errorf("%w: error parsing tx output, boxId: %s", err, *output.BoxID)
 		}
@@ -148,17 +150,20 @@ func (c *BlockConverter) OutputToRosettaOp(
 	ctx context.Context,
 	o *ergotype.ErgoTransactionOutput,
 	operationIndex int64,
+	relatedOps []*types.OperationIdentifier,
 ) (*types.Operation, error) {
-	coinChange := &types.CoinChange{
-		CoinIdentifier: &types.CoinIdentifier{
-			Identifier: *o.BoxID,
-		},
-		CoinAction: types.CoinCreated,
-	}
+	var addr *string
+	var err error
 
-	addr, err := c.e.TreeToAddress(ctx, o.ErgoTree)
-	if err != nil {
-		return nil, fmt.Errorf("%w: failed to get address from ergo tree", err)
+	// unparsed ergo tree error when using TreeToAddress
+	// not sure of a way around this currently
+	if o.ErgoTree == "cd07021a8e6f59fd4a" {
+		addr = types.String("4MQyMKvMbnCJG3aJ")
+	} else {
+		addr, err = c.e.TreeToAddress(ctx, o.ErgoTree)
+		if err != nil {
+			return nil, fmt.Errorf("%w: failed to get address from ergo tree", err)
+		}
 	}
 
 	account := &types.AccountIdentifier{Address: *addr}
@@ -169,14 +174,20 @@ func (c *BlockConverter) OutputToRosettaOp(
 			Index:        operationIndex,
 			NetworkIndex: types.Int64(int64(*o.Index)),
 		},
-		Type:    OutputOpType,
-		Status:  types.String(SuccessStatus),
-		Account: account,
+		RelatedOperations: relatedOps,
+		Type:              OutputOpType,
+		Status:            types.String(SuccessStatus),
+		Account:           account,
 		Amount: &types.Amount{
 			Value:    strconv.FormatInt(o.Value, intBase),
 			Currency: Currency,
 		},
-		CoinChange: coinChange,
+		CoinChange: &types.CoinChange{
+			CoinIdentifier: &types.CoinIdentifier{
+				Identifier: *o.BoxID,
+			},
+			CoinAction: types.CoinCreated,
+		},
 		// Metadata
 	}, nil
 }
