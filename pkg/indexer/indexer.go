@@ -246,8 +246,12 @@ func (i *Indexer) getBlockByIdentifier(
 // Stores the block Hash/Index only. `BlockSeen` adds the actual block to storage.
 func (i *Indexer) BlockAdded(ctx context.Context, block *types.Block) error {
 	blockStorage := i.storage.Block()
-	i.ensureNegativeValueInputs(block)
-	err := blockStorage.AddBlock(ctx, block)
+	err := i.ensureNegativeValueInputs(block)
+	if err != nil {
+		return fmt.Errorf("failed to ensure negative value inputs: %w", err)
+	}
+
+	err = blockStorage.AddBlock(ctx, block)
 	if err != nil {
 		return fmt.Errorf(
 			"%w: unable to add block to storage %s:%d",
