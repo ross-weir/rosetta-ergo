@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"math/big"
 	"runtime"
 	"sync"
 	"time"
@@ -200,12 +201,11 @@ func (i *Indexer) Block(
 	// coins are needed during block conversion to populate transaction inputs/rosetta operations
 	coinMap, err := i.findCoins(ctx, ergoBlock, requiredInputs)
 	if err != nil {
-		return nil, fmt.Errorf("%w: unable to find inputs", err)
+		return nil, fmt.Errorf("findCoins failed: %w", err)
 	}
 
 	converter := rosetta.NewBlockConverter(i.client, coinMap)
 	block, err := converter.BlockToRosettaBlock(ctx, ergoBlock)
-	// block, err := ergo.ErgoBlockToRosetta(ctx, i.client, ergoBlock, coinMap)
 
 	if err != nil {
 		return nil, err
@@ -246,6 +246,7 @@ func (i *Indexer) getBlockByIdentifier(
 // Stores the block Hash/Index only. `BlockSeen` adds the actual block to storage.
 func (i *Indexer) BlockAdded(ctx context.Context, block *types.Block) error {
 	blockStorage := i.storage.Block()
+	i.ensureNegativeValueInputs(block)
 	err := blockStorage.AddBlock(ctx, block)
 	if err != nil {
 		return fmt.Errorf(
@@ -634,6 +635,31 @@ func (i *Indexer) findCoin(
 	}
 
 	return nil, nil, ctx.Err()
+}
+
+func (i *Indexer) ensureNegativeValueInputs(block *types.Block) error {
+	for _, tx := range block.Transactions {
+		for _, op := range tx.Operations {
+			if op.CoinChange.CoinAction != types.CoinSpent {
+				continue
+			}
+
+			bigVal, ok := new(big.Int).SetString(op.Amount.Value, 10)
+			if !ok {
+				return fmt.Errorf("%s is not an integer", bigVal)
+			}
+
+			if bigVal.Sign() == 1 {
+				negatedVal, err := types.NegateValue(op.Amount.Value)
+				if err != nil {
+					return fmt.Errorf("%w: unable to negate input", err)
+				}
+				op.Amount.Value = negatedVal
+			}
+		}
+	}
+
+	return nil
 }
 
 // bootstrapGenesisState loads pre-genesis block utxos into the db
