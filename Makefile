@@ -49,8 +49,8 @@ docker-run:
 		${APP}:${PACKAGE_VER}
 
 release:
-	ifeq ($(MSG),)
-		$(error MSG parameter not supplied)
-	endif
-	git tag -a ${PACKAGE_VER} -m "${MSG}"
-	git push origin ${PACKAGE_VER}
+ifeq ($(MSG),)
+	$(error MSG parameter not supplied)
+endif
+	git tag -a "v${PACKAGE_VER}" -m "${MSG}"
+	git push origin "v${PACKAGE_VER}"
