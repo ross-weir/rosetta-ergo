@@ -4,14 +4,15 @@ before:
     - go mod download
     - go mod tidy
 builds:
-  - binary: rosetta-ergo
+  - binary: "rosetta-ergo"
     ldflags: -s -w -X github.com/ross-weir/{{ .ProjectName }}/pkg/config.Version={{.Version}}
     goos:
-      - darwin
       - windows
-      - linux
     env:
+      - CC=x86_64-w64-mingw32-gcc
       - CGO_ENABLED=1
+    ignore:
+      - goarch: 386
 archives:
   - replacements:
       386: i386
