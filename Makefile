@@ -47,3 +47,10 @@ docker-run:
 		-p 9053:9053 \
 		-p 9052:9052 \
 		${APP}:${PACKAGE_VER}
+
+release:
+	ifeq ($(MSG),)
+		$(error MSG parameter not supplied)
+	endif
+	git tag -a ${PACKAGE_VER} -m "${MSG}"
+	git push origin ${PACKAGE_VER}

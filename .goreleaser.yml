@@ -1,0 +1,32 @@
+project_name: rosetta-ergo
+before:
+  hooks:
+    - go mod download
+builds:
+  - binary: rosetta-ergo
+    ldflags: -s -w -X github.com/ross-weir/{{ .ProjectName }}/pkg/config.Version={{.Version}}
+    goos:
+      - darwin
+      - windows
+      - linux
+    env:
+      - CGO_ENABLED=0
+archives:
+  - replacements:
+      386: i386
+      amd64: x86_64
+    name_template: '{{ .ProjectName }}-{{ .Version }}-{{ .Os }}-{{ .Arch }}{{ if .Arm }}v{{ .Arm }}{{ end }}'
+    wrap_in_directory: true
+    format_overrides:
+      - goos: windows
+        format: zip
+checksum:
+  name_template: '{{ .ProjectName }}-{{ .Version }}-checksums.txt'
+snapshot:
+  name_template: "{{ .Tag }}-next"
+changelog:
+  sort: asc
+  filters:
+    exclude:
+      - '^docs:'
+      - '^test:'
