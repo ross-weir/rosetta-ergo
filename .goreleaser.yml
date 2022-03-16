@@ -2,6 +2,7 @@ project_name: rosetta-ergo
 before:
   hooks:
     - go mod download
+    - go mod tidy
 builds:
   - binary: rosetta-ergo
     ldflags: -s -w -X github.com/ross-weir/{{ .ProjectName }}/pkg/config.Version={{.Version}}
@@ -9,10 +10,6 @@ builds:
       - darwin
       - windows
       - linux
-    # Not supported by zstd package
-    ignore:
-      - goos: windows
-        goarch: arm64
     env:
       - CGO_ENABLED=0
 archives:
