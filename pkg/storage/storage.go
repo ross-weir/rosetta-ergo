@@ -31,6 +31,7 @@ func defaultBadgerOptions(
 	// By default, we do not compress the table at all. Doing so can
 	// significantly increase memory usage.
 	opts.Compression = options.None
+	opts.Truncate = true
 
 	return opts
 }
