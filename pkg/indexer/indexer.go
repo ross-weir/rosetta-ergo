@@ -4,6 +4,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"log"
 	"math/big"
 	"runtime"
 	"sync"
@@ -668,22 +669,12 @@ func (i *Indexer) ensureNegativeValueInputs(block *types.Block) error {
 
 // bootstrapGenesisState loads pre-genesis block utxos into the db
 func (i *Indexer) bootstrapGenesisState(ctx context.Context) error {
-	err := i.storage.Balance().BootstrapBalances(
-		ctx,
-		i.cfg.BootstrapBalancePath,
-		i.cfg.GenesisBlockIdentifier,
-	)
+	err := i.bootstrapBalances(ctx)
 	if err != nil {
 		return err
 	}
 
-	var accountCoins []types.AccountCoin
-
-	err = sdkUtils.LoadAndParse(i.cfg.GenesisUtxoPath, &accountCoins)
-	if err != nil {
-		return err
-	}
-
+	accountCoins := i.cfg.GenesisUtxos
 	importedCoins := make([]*sdkUtils.AccountBalance, len(accountCoins))
 
 	for i, coin := range accountCoins {
@@ -698,6 +689,57 @@ func (i *Indexer) bootstrapGenesisState(ctx context.Context) error {
 		return err
 	}
 
+	return nil
+}
+
+// bootstrapBalances bootstraps balance amounts in the database.
+// We use a custom function instead of rosetta-sdk `balance_storage.BootstrapBalances` because
+// the SDK only accepts a file path for the balances whereas we want to either pass
+// the parsed balances directly or use the bytes representation because the data is embedded.
+func (i *Indexer) bootstrapBalances(ctx context.Context) error {
+	// Update balances in database
+	dbTransaction := i.storage.DB().Transaction(ctx)
+	defer dbTransaction.Discard(ctx)
+
+	for _, balance := range i.cfg.BootstrapBalances {
+		//	// Ensure change.Difference is valid
+		amountValue, ok := new(big.Int).SetString(balance.Value, 10)
+		if !ok {
+			return fmt.Errorf("%s is not an integer", balance.Value)
+		}
+
+		if amountValue.Sign() < 1 {
+			return fmt.Errorf("cannot bootstrap zero or negative balance %s", amountValue.String())
+		}
+
+		log.Printf(
+			"Setting account %s balance to %s %+v\n",
+			balance.Account.Address,
+			balance.Value,
+			balance.Currency,
+		)
+
+		err := i.storage.Balance().SetBalance(
+			ctx,
+			dbTransaction,
+			balance.Account,
+			&types.Amount{
+				Value:    balance.Value,
+				Currency: balance.Currency,
+			},
+			i.cfg.GenesisBlockIdentifier,
+		)
+
+		if err != nil {
+			return err
+		}
+	}
+
+	if err := dbTransaction.Commit(ctx); err != nil {
+		return err
+	}
+
+	log.Printf("%d Balances Bootstrapped\n", len(i.cfg.BootstrapBalances))
 	return nil
 }
 

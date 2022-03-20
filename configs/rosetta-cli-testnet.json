@@ -12,7 +12,7 @@
   "compression_disabled": true,
   "data": {
     "initial_balance_fetch_disabled": true,
-    "bootstrap_balances": "bootstrap_balances.json",
+    "bootstrap_balances": "../../pkg/config/testnet/bootstrap_balances.json",
     "end_conditions": {
       "index": 10000,
       "reconciliation_coverage": {

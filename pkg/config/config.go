@@ -1,14 +1,32 @@
 package config
 
 import (
+	"bytes"
+	"encoding/json"
 	"fmt"
 	"os"
 	"path"
 	"strconv"
 
+	"github.com/coinbase/rosetta-sdk-go/storage/modules"
+
+	_ "embed"
+
 	"github.com/coinbase/rosetta-sdk-go/types"
 	"github.com/ross-weir/rosetta-ergo/pkg/ergo"
 )
+
+//go:embed mainnet/bootstrap_balances.json
+var mainnetBootstrapBalanceBytes []byte
+
+//go:embed mainnet/genesis_utxos.json
+var mainnetGenesisUtxosBytes []byte
+
+//go:embed testnet/bootstrap_balances.json
+var testnetBootstrapBalanceBytes []byte
+
+//go:embed testnet/genesis_utxos.json
+var testnetGenesisUtxosBytes []byte
 
 // Version is populated at build time using ldflags
 var Version = "UNKNOWN"
@@ -24,15 +42,8 @@ const (
 	Mainnet string = "mainnet"
 	Testnet string = "testnet"
 
-	mainnetNodePort = 9053
-	testnetNodePort = 9052
-
 	// Appended to the data directory supplied by RosettaDataDirEnv
 	indexerPath = "indexer"
-	// Appended to the data directory, contains utxos that existed before genesis block
-	genesisUtxoPath = "genesis_utxos.json"
-	// Path to balances to bootstrap
-	bootstrapBalancePath = "bootstrap_balances.json"
 
 	// allFilePermissions specifies anyone can do anything
 	// to the file.
@@ -62,6 +73,10 @@ const (
 
 	// The directory containing configuration files
 	ConfigEnv = "CONFIG_DIR"
+
+	// The port that the blockchain node is listening on
+	// Not currently prefixed with EnvVarPrefix because I want to change that from ERGO_ -> ROSETTA_.
+	NodePortEnv = "ROSETTA_NODE_PORT"
 )
 
 type Configuration struct {
@@ -73,8 +88,8 @@ type Configuration struct {
 	RosettaPort            int
 	NodePort               int
 	IndexerPath            string
-	GenesisUtxoPath        string
-	BootstrapBalancePath   string
+	GenesisUtxos           []types.AccountCoin
+	BootstrapBalances      []*modules.BootstrapBalance
 	NodeConfigPath         string
 }
 
@@ -95,9 +110,6 @@ func LoadConfiguration() (*Configuration, error) {
 		if err := ensurePathExists(cfg.IndexerPath); err != nil {
 			return nil, fmt.Errorf("%w: unable to create indexer path", err)
 		}
-
-		cfg.GenesisUtxoPath = path.Join(configDirectory, networkValue, genesisUtxoPath)
-		cfg.BootstrapBalancePath = path.Join(configDirectory, networkValue, bootstrapBalancePath)
 	case Offline:
 		cfg.Mode = Offline
 	case "":
@@ -106,6 +118,16 @@ func LoadConfiguration() (*Configuration, error) {
 		return nil, fmt.Errorf("%s is not a valid mode", modeValue)
 	}
 
+	nodePortStr := os.Getenv(NodePortEnv)
+	nodePort, err := parsePort(nodePortStr)
+	if err != nil {
+		return nil, err
+	}
+
+	var genesisUtxos []types.AccountCoin
+	var bootstrapBalances []*modules.BootstrapBalance
+
+	cfg.NodePort = *nodePort
 	cfg.Currency = ergo.Currency
 	cfg.Version = Version
 	switch networkValue {
@@ -114,15 +136,39 @@ func LoadConfiguration() (*Configuration, error) {
 			Blockchain: ergo.Blockchain,
 			Network:    ergo.MainnetNetwork,
 		}
+		err := parseInterface(mainnetGenesisUtxosBytes, &genesisUtxos)
+
+		if err != nil {
+			return nil, err
+		}
+
+		err = parseInterface(mainnetBootstrapBalanceBytes, &bootstrapBalances)
+		if err != nil {
+			return nil, err
+		}
+
+		cfg.GenesisUtxos = genesisUtxos
+		cfg.BootstrapBalances = bootstrapBalances
 		cfg.GenesisBlockIdentifier = ergo.MainnetGenesisBlockIdentifier
-		cfg.NodePort = mainnetNodePort
 	case Testnet:
 		cfg.Network = &types.NetworkIdentifier{
 			Blockchain: ergo.Blockchain,
 			Network:    ergo.TestnetNetwork,
 		}
+		err := parseInterface(testnetGenesisUtxosBytes, &genesisUtxos)
+
+		if err != nil {
+			return nil, err
+		}
+
+		err = parseInterface(testnetBootstrapBalanceBytes, &bootstrapBalances)
+		if err != nil {
+			return nil, err
+		}
+
+		cfg.GenesisUtxos = genesisUtxos
+		cfg.BootstrapBalances = bootstrapBalances
 		cfg.GenesisBlockIdentifier = ergo.TestnetGenesisBlockIdentifier
-		cfg.NodePort = testnetNodePort
 	case "":
 		return nil, fmt.Errorf("%s%s must be populated", EnvVarPrefix, NetworkEnv)
 	default:
@@ -134,12 +180,12 @@ func LoadConfiguration() (*Configuration, error) {
 		return nil, fmt.Errorf("%s%s must be populated", EnvVarPrefix, RosettaPortEnv)
 	}
 
-	rosettaPort, err := strconv.Atoi(rosettaPortStr)
-	if err != nil || len(rosettaPortStr) == 0 || rosettaPort <= 0 {
-		return nil, fmt.Errorf("%w: unable to parse port %s", err, rosettaPortStr)
+	rosettaPort, err := parsePort(rosettaPortStr)
+	if err != nil {
+		return nil, err
 	}
 
-	cfg.RosettaPort = rosettaPort
+	cfg.RosettaPort = *rosettaPort
 
 	return cfg, nil
 }
@@ -153,6 +199,27 @@ func getEnv(key string) string {
 func ensurePathExists(path string) error {
 	if err := os.MkdirAll(path, os.FileMode(allFilePermissions)); err != nil {
 		return fmt.Errorf("%w: unable to create %s directory", err, path)
+	}
+
+	return nil
+}
+
+func parsePort(port string) (*int, error) {
+	p, err := strconv.Atoi(port)
+
+	if err != nil || len(port) == 0 || p <= 0 {
+		return nil, fmt.Errorf("unable to parse port %s: %w", port, err)
+	}
+
+	return &p, nil
+}
+
+func parseInterface(b []byte, output interface{}) error {
+	dec := json.NewDecoder(bytes.NewReader(b))
+	dec.DisallowUnknownFields()
+
+	if err := dec.Decode(&output); err != nil {
+		return fmt.Errorf("%w: unable to unmarshal", err)
 	}
 
 	return nil
