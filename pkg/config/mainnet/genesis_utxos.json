@@ -1,0 +1,53 @@
+[
+  {
+    "account": {
+      "address": "AfYgQf5PappexLPvSSvtQZQQ1UdAi1LyHrdvMxHv4dnhu8WPwdqGJ82dtaKNBtLCEMQSy77c5SzhuPiKiedQXbjaszGzGCyzwf88iDHT4czMPnXKWmoPE1c8nvHX4uSMtCcrBCQzR1ffqXaEjgDZEdNxjs24WRjFxHxkNHoL7QijEfhwTHjMoiTJ2E2QhTkbqrNSJK4GLF1dUKVX3nu2WS9P2Et4bGEtufzZEDhGPE2mszGJDAr1b8W3rZ43Y7rYuwx128ixX4yjoTdP5smX6spzytcp5ZMhiPArdb935WGhJqGvwaXGmN9aLXDR1q"
+    },
+    "coin": {
+      "coin_identifier": {
+        "identifier": "b69575e11c5c43400bfead5976ee0d6245a1168396b2e2a4f384691f275d501c"
+      },
+      "amount": {
+        "value": "93409132500000000",
+        "currency": {
+          "symbol": "ERG",
+          "decimals": 9
+        }
+      }
+    }
+  },
+  {
+    "account": {
+      "address": "Ms7smJmdbakqfwNo"
+    },
+    "coin": {
+      "coin_identifier": {
+        "identifier": "b8ce8cfe331e5eadfb0783bdc375c94413433f65e1e45857d71550d42e4d83bd"
+      },
+      "amount": {
+        "value": "1000000000",
+        "currency": {
+          "symbol": "ERG",
+          "decimals": 9
+        }
+      }
+    }
+  },
+  {
+    "account": {
+      "address": "MiLZjNnxChCRGAG4guFp4ESHxwsSXuocUXkFA4Hgiq9nwYy7mZ4Go2iNCbUi6GaH4ru7S8chrcacvPWTRDzTcQ3VXo123kkLXt9hbVSiEF6J5gX1K1Xti5AKYJkgK6qx9uN4DtffzDHZ6rruqi4nQo8CLUDhdpFqFi9xgAXKejP6mF7KZLD6QJzHN9js8dJFgw69HS3"
+    },
+    "coin": {
+      "coin_identifier": {
+        "identifier": "5527430474b673e4aafb08e0079c639de23e6a17e87edd00f78662b43c88aeda"
+      },
+      "amount": {
+        "value": "4330791500000000",
+        "currency": {
+          "symbol": "ERG",
+          "decimals": 9
+        }
+      }
+    }
+  }
+]
