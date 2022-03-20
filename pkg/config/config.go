@@ -44,10 +44,6 @@ const (
 
 	// Appended to the data directory supplied by RosettaDataDirEnv
 	indexerPath = "indexer"
-	// Appended to the data directory, contains utxos that existed before genesis block
-	genesisUtxoPath = "genesis_utxos.json"
-	// Path to balances to bootstrap
-	bootstrapBalancePath = "bootstrap_balances.json"
 
 	// allFilePermissions specifies anyone can do anything
 	// to the file.
